@@ -78,7 +78,7 @@ function generatePayments(
     const transferDate = hasTransfer
       ? new Date(now.getTime() - Math.random() * 3 * 24 * 60 * 60 * 1000).toISOString()
       : undefined;
-    const slipCount = hasSlip ? Math.floor(rnd(1, 3)) : 0;
+    const slipCount = hasSlip ? 1 : 0;
     const bankName = (ch === 'BANK_TRANSFER' || ch === 'CREDIT') ? pick(BANKS) : undefined;
     const hasImgSlip = hasSlip && (ch === 'BANK_TRANSFER' || ch === 'CREDIT');
     return {
@@ -159,10 +159,8 @@ export function generateTransaction(ageMs = 0): Transaction {
     ? new Date(now.getTime() - Math.random() * 3 * 24 * 60 * 60 * 1000).toISOString()
     : undefined;
 
-  const slipCount = payStatus === 'UNDER_REVIEW' ? Math.floor(rnd(1, 4))
-    : payStatus === 'COMPLETED' ? Math.floor(rnd(1, 3))
-    : payStatus === 'REJECTED' || payStatus === 'FAILED' ? Math.floor(rnd(1, 2))
-    : 0;
+  // 1 transfer = 1 slip only
+  const slipCount = (payStatus === 'UNDER_REVIEW' || payStatus === 'COMPLETED' || payStatus === 'REJECTED' || payStatus === 'FAILED') ? 1 : 0;
 
   const isExpandable = Math.random() < 0.25;
   const payments = isExpandable ? generatePayments(now, amount, payStatus) : undefined;
