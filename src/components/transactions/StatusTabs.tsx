@@ -1,0 +1,53 @@
+'use client';
+
+import type { TabKey, Transaction } from '@/lib/types';
+
+interface Props {
+  activeTab: TabKey;
+  onTabChange: (tab: TabKey) => void;
+  transactions: Transaction[];
+}
+
+const TABS: { key: TabKey; label: string }[] = [
+  { key: 'ALL',          label: 'ทั้งหมด' },
+  { key: 'PENDING',      label: 'รอชำระ' },
+  { key: 'UNDER_REVIEW', label: 'รอตรวจสอบ' },
+  { key: 'COMPLETED',    label: 'สำเร็จ' },
+  { key: 'CANCELLED',    label: 'ยกเลิก' },
+];
+
+function countForTab(txns: Transaction[], tab: TabKey): number | null {
+  if (tab === 'ALL') return null;
+  const n = txns.filter(tx => {
+    if (tab === 'PENDING')      return tx.payment_status === 'PENDING' && tx.transaction_status === 'PENDING';
+    if (tab === 'UNDER_REVIEW') return tx.payment_status === 'UNDER_REVIEW';
+    if (tab === 'COMPLETED')    return tx.transaction_status === 'COMPLETED' || tx.transaction_status === 'CLOSED';
+    if (tab === 'CANCELLED')    return tx.transaction_status === 'CANCELLED' || tx.transaction_status === 'FAILED' || tx.transaction_status === 'EXPIRED';
+    return false;
+  }).length;
+  return n;
+}
+
+export default function StatusTabs({ activeTab, onTabChange, transactions }: Props) {
+  return (
+    <div className="status-tabs" role="tablist">
+      {TABS.map(({ key, label }) => {
+        const count = countForTab(transactions, key);
+        return (
+          <button
+            key={key}
+            role="tab"
+            aria-selected={activeTab === key}
+            className={`tab-btn${activeTab === key ? ' active' : ''}`}
+            onClick={() => onTabChange(key)}
+          >
+            {label}
+            {count !== null && count > 0 && (
+              <span className="tab-count">{count}</span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
