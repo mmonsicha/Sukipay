@@ -40,6 +40,14 @@ function suffix(n: number) {
 function dateStr(d: Date) { return d.toISOString().slice(0, 10).replace(/-/g, ''); }
 function uid() { return Math.random().toString(36).slice(2, 10); }
 
+const SLIP_IMAGES = [
+  'https://thunder.in.th/wp-content/uploads/2024/06/%E0%B8%AA%E0%B8%A5%E0%B8%B4%E0%B8%9B%E0%B9%82%E0%B8%AD%E0%B8%99%E0%B9%80%E0%B8%87%E0%B8%B4%E0%B8%99.webp',
+  'https://thunder.in.th/wp-content/uploads/2024/04/Screenshot-2567-07-03-at-13.21.01.png',
+  'https://thunder.in.th/wp-content/uploads/2023/12/r7cbhdacsLXQNLp49Qm-o-1-230x300.jpg',
+];
+
+let slipImgCursor = 0;
+
 function generateSlips(
   count: number,
   amount: number,
@@ -53,9 +61,11 @@ function generateSlips(
   return Array.from({ length: count }, (_, i) => {
     const seed = Math.random().toString(36).slice(2, 9);
     const uploadedAt = new Date(now.getTime() + i * 120_000).toISOString();
+    const imageUrl = SLIP_IMAGES[slipImgCursor % SLIP_IMAGES.length];
+    slipImgCursor++;
     return {
       slip_id: `slip-${seed}`,
-      image_url: `https://picsum.photos/seed/${seed}/300/500`,
+      image_url: imageUrl,
       uploaded_at: uploadedAt,
       amount: Math.round((amount / count) * 100) / 100,
       transfer_time: transferTime,

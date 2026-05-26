@@ -3,7 +3,6 @@
 import { useEffect, useCallback, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Slip } from '@/lib/types';
-import SlipCard from './SlipCard';
 
 interface Props {
   slip: Slip | null;
@@ -49,9 +48,14 @@ export default function SlipPreviewModal({ slip, onClose }: Props) {
           </button>
         </div>
 
-        {/* Body — full SlipCard */}
+        {/* Body — slip image */}
         <div className="slip-modal-body">
-          <SlipCard slip={slip} />
+          <img
+            src={slip.image_url}
+            alt="สลิปโอนเงิน"
+            className="slip-modal-img"
+            onError={e => { (e.target as HTMLImageElement).style.opacity = '0.3'; }}
+          />
         </div>
 
         {/* Footer */}

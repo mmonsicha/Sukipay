@@ -6,7 +6,6 @@ import { useParams } from 'next/navigation';
 import TopNavbar from '@/components/layout/TopNavbar';
 import Sidebar from '@/components/layout/Sidebar';
 import SlipPreviewModal from './SlipPreviewModal';
-import SlipCard from './SlipCard';
 import { INITIAL_TRANSACTIONS } from '@/lib/mockData';
 import type {
   Transaction, Payment, Slip,
@@ -154,11 +153,14 @@ function SlipPanel({
           ดูสลิป
         </button>
       </div>
-      {/* Scaled-down SlipCard as thumbnail */}
+      {/* Slip image thumbnail */}
       <div className="slip-compact-thumb-wrap" onClick={() => onOpenFull(slip)} title="คลิกเพื่อดูสลิปเต็ม">
-        <div className="slip-thumb-scaler">
-          <SlipCard slip={slip} overrideBankName={payment.bank_name ?? slip.bank_name} />
-        </div>
+        <img
+          src={slip.image_url}
+          alt="สลิปโอนเงิน"
+          className="slip-compact-img"
+          onError={e => { (e.target as HTMLImageElement).style.opacity = '0.3'; }}
+        />
         <div className="slip-compact-overlay">
           <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35M11 8v6M8 11h6" />

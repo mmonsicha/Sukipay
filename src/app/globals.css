@@ -871,10 +871,17 @@ body {
 .slip-modal-body {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: 16px;
   display: flex;
   justify-content: center;
   background: #f3f4f6;
+}
+.slip-modal-img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  object-fit: contain;
+  display: block;
 }
 
 /* Image area */
@@ -1843,33 +1850,28 @@ body {
   letter-spacing: 0.08em;
 }
 
-/* ── Compact thumbnail (scaled down SlipCard) ──────────────────── */
+/* ── Compact thumbnail ──────────────────────────────────────────── */
 .slip-compact-thumb-wrap {
   width: 60px;
-  height: 78px;
+  height: 80px;
   border-radius: 6px;
   overflow: hidden;
   border: 1px solid var(--border);
   cursor: pointer;
   position: relative;
   flex-shrink: 0;
-  background: #fff;
+  background: #f3f4f6;
 }
-.slip-thumb-scaler {
-  transform: scale(0.214);
-  transform-origin: top left;
-  width: 280px;
-  height: 364px;
-  position: absolute;
-  top: 0;
-  left: 0;
-  pointer-events: none;
-  overflow: hidden;
+.slip-compact-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 .slip-compact-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0,0,0,0.28);
+  background: rgba(0,0,0,0.32);
   color: #fff;
   display: flex;
   align-items: center;
