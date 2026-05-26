@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import type { Transaction, Payment, Slip, SortDirection, PaymentStatus, TransactionStatus, PaymentChannel } from '@/lib/types';
+import Link from 'next/link';
+import type { Transaction, Slip, SortDirection, PaymentStatus, TransactionStatus, PaymentChannel } from '@/lib/types';
 import SlipPreviewModal from './SlipPreviewModal';
 
 // ── Formatters ──────────────────────────────────────────────────────────────
@@ -32,6 +33,8 @@ const PS_CFG: Record<PaymentStatus, { cls: string; label: string }> = {
   COMPLETED:    { cls: 'badge-ps-completed', label: 'ชำระแล้ว' },
   REJECTED:     { cls: 'badge-ps-rejected',  label: 'ปฏิเสธ' },
   FAILED:       { cls: 'badge-ps-failed',    label: 'ล้มเหลว' },
+  VOIDED:       { cls: 'badge-ps-failed',    label: 'ยกเลิก' },
+  REFUNDED:     { cls: 'badge-ts-closed',    label: 'คืนเงิน' },
 };
 
 const TS_CFG: Record<TransactionStatus, { cls: string; label: string }> = {
@@ -218,9 +221,6 @@ export default function TransactionTable({ transactions, newRows, sortField, sor
               (tx.payment_status === 'PENDING' ||
                tx.payment_status === 'REJECTED' ||
                tx.payment_status === 'FAILED');
-            const totalSlips = hasPayments
-              ? tx.payments!.reduce((s, p) => s + p.slip_count, 0)
-              : tx.slip_count;
 
             return (
               <React.Fragment key={tx.transaction_id}>
@@ -320,11 +320,18 @@ export default function TransactionTable({ transactions, newRows, sortField, sor
                   <td className="action-cell">
                     {(() => {
                       const { primary, secondary } = getActionButtons(tx);
+                      const detailHref = `/transactions/${tx.transaction_no}`;
+                      const isNav = (label: string) => label === 'ดู' || label === 'ตรวจสอบ';
                       return (
                         <div className="action-btns">
-                          <button className={`action-btn action-btn--${primary.variant}`}>{primary.label}</button>
+                          {isNav(primary.label)
+                            ? <Link href={detailHref} className={`action-btn action-btn--${primary.variant}`}>{primary.label}</Link>
+                            : <button className={`action-btn action-btn--${primary.variant}`}>{primary.label}</button>
+                          }
                           {secondary && (
-                            <button className={`action-btn action-btn--${secondary.variant}`}>{secondary.label}</button>
+                            isNav(secondary.label)
+                              ? <Link href={detailHref} className={`action-btn action-btn--${secondary.variant}`}>{secondary.label}</Link>
+                              : <button className={`action-btn action-btn--${secondary.variant}`}>{secondary.label}</button>
                           )}
                         </div>
                       );
@@ -358,7 +365,7 @@ export default function TransactionTable({ transactions, newRows, sortField, sor
                       {/* Sub-row action — view slip/detail */}
                       <td className="action-cell">
                         <div className="action-btns">
-                          <button className="action-btn action-btn--view">ดู</button>
+                          <Link href={`/transactions/${tx.transaction_no}`} className="action-btn action-btn--view">ดู</Link>
                         </div>
                       </td>
                     </tr>
