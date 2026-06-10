@@ -28,23 +28,26 @@ const CHANNEL_LABELS: Record<PaymentChannel, string> = {
 // ── Status badge helpers ────────────────────────────────────────────────────
 
 const PS_CFG: Record<PaymentStatus, { cls: string; label: string }> = {
-  PENDING:      { cls: 'badge-ps-pending',   label: 'รอชำระ' },
-  UNDER_REVIEW: { cls: 'badge-ps-review',    label: 'รอตรวจสอบ' },
-  COMPLETED:    { cls: 'badge-ps-completed', label: 'ชำระแล้ว' },
-  REJECTED:     { cls: 'badge-ps-rejected',  label: 'ปฏิเสธ' },
-  FAILED:       { cls: 'badge-ps-failed',    label: 'ล้มเหลว' },
-  VOIDED:       { cls: 'badge-ps-failed',    label: 'ยกเลิก' },
-  REFUNDED:     { cls: 'badge-ts-closed',    label: 'คืนเงิน' },
+  PENDING:        { cls: 'badge-ps-pending',        label: 'รอชำระ' },
+  UNDER_REVIEW:   { cls: 'badge-ps-review',         label: 'รอตรวจสอบ' },
+  COMPLETED:      { cls: 'badge-ps-completed',      label: 'ชำระแล้ว' },
+  REJECTED:       { cls: 'badge-ps-rejected',       label: 'ปฏิเสธ' },
+  FAILED:         { cls: 'badge-ps-failed',         label: 'ล้มเหลว' },
+  VOIDED:         { cls: 'badge-ps-failed',         label: 'ยกเลิก' },
+  REFUNDED:       { cls: 'badge-ts-closed',         label: 'คืนเงิน' },
+  REFUND_PENDING: { cls: 'badge-ps-refund-pending', label: 'รอคืนเงิน' },
 };
 
 const TS_CFG: Record<TransactionStatus, { cls: string; label: string }> = {
-  PENDING:   { cls: 'badge-ts-pending',   label: 'รอชำระ' },
-  CLOSED:    { cls: 'badge-ts-closed',    label: 'ปิดยอด' },
-  SETTLED:   { cls: 'badge-ts-settled',   label: 'สำเร็จ' },
-  COMPLETED: { cls: 'badge-ts-completed', label: 'สำเร็จ' },
-  CANCELLED: { cls: 'badge-ts-cancelled', label: 'ยกเลิก' },
-  FAILED:    { cls: 'badge-ts-failed',    label: 'ล้มเหลว' },
-  EXPIRED:   { cls: 'badge-ts-expired',   label: 'หมดอายุ' },
+  PENDING:       { cls: 'badge-ts-pending',        label: 'รอชำระ' },
+  CLOSED:        { cls: 'badge-ts-closed',         label: 'ปิดยอด' },
+  SETTLED:       { cls: 'badge-ts-settled',        label: 'สำเร็จ' },
+  COMPLETED:     { cls: 'badge-ts-completed',      label: 'สำเร็จ' },
+  CANCELLED:     { cls: 'badge-ts-cancelled',      label: 'ยกเลิก' },
+  FAILED:        { cls: 'badge-ts-failed',         label: 'ล้มเหลว' },
+  EXPIRED:       { cls: 'badge-ts-expired',        label: 'หมดอายุ' },
+  VOID_PREPARED: { cls: 'badge-ts-void-prepared',  label: 'กำลังยกเลิก' },
+  VOID:          { cls: 'badge-ts-void',           label: 'ยกเลิกแล้ว' },
 };
 
 function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
@@ -55,6 +58,36 @@ function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
 function TxStatusBadge({ status }: { status: TransactionStatus }) {
   const { cls, label } = TS_CFG[status];
   return <span className={`status-badge ${cls}`}><span className="status-dot" />{label}</span>;
+}
+
+/** PAT-2036: override badge ใน column สถานะธุรกรรม */
+function TxStatusBadgeWithOverpay({ tx }: { tx: Transaction }) {
+  // Overpay: ยอดชำระเกิน รอ Finance ตัดสินใจ
+  const isOverpay =
+    (tx.overpay_delta ?? 0) > 0 &&
+    !tx.overpay_acknowledged &&
+    tx.payment_status === 'COMPLETED';
+
+  // CANCELLED + REFUND_PENDING: order ยกเลิกแต่ลูกค้าโอนเงินมาแล้ว รอคืนเงิน
+  const isCancelledRefundPending =
+    tx.transaction_status === 'CANCELLED' &&
+    tx.payment_status === 'REFUND_PENDING';
+
+  if (isOverpay) {
+    return (
+      <span className="status-badge badge-ts-overpay">
+        <span className="status-dot" />ชำระเกิน
+      </span>
+    );
+  }
+  if (isCancelledRefundPending) {
+    return (
+      <span className="status-badge badge-ps-refund-pending">
+        <span className="status-dot" />รอคืนเงิน
+      </span>
+    );
+  }
+  return <TxStatusBadge status={tx.transaction_status} />;
 }
 
 // ── Amount cell ─────────────────────────────────────────────────────────────
@@ -69,6 +102,30 @@ function amountClass(tx: Transaction): string {
 interface ActionBtn { label: string; variant: 'brand' | 'view' }
 
 function getActionButtons(tx: Transaction): { primary: ActionBtn; secondary?: ActionBtn } {
+  // PAT-2036: Overpay — รอ Finance Manager ตัดสินใจ
+  const isOverpay =
+    (tx.overpay_delta ?? 0) > 0 &&
+    !tx.overpay_acknowledged &&
+    tx.payment_status === 'COMPLETED';
+
+  if (isOverpay) {
+    return {
+      primary:   { label: 'คืนเงิน', variant: 'brand' },
+      secondary: { label: 'ดู',      variant: 'view'  },
+    };
+  }
+
+  // PAT-2036: CANCELLED + REFUND_PENDING — Finance ต้องดำเนินการคืนเงิน
+  const isCancelledRefundPending =
+    tx.transaction_status === 'CANCELLED' &&
+    tx.payment_status === 'REFUND_PENDING';
+
+  if (isCancelledRefundPending) {
+    return {
+      primary:   { label: 'ดูรายละเอียด', variant: 'brand' },
+    };
+  }
+
   const isTerminal =
     tx.transaction_status === 'CANCELLED' ||
     tx.transaction_status === 'FAILED'    ||
@@ -129,6 +186,7 @@ interface Props {
   sortField: string;
   sortDirection: SortDirection;
   onSort: (field: string) => void;
+  onSubmitPayment?: (tx: Transaction) => void;
 }
 
 // ── Slip thumbnails ─────────────────────────────────────────────────────────
@@ -167,7 +225,7 @@ function SlipThumbs({ slips, onOpen }: { slips: Slip[]; onOpen: (s: Slip) => voi
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export default function TransactionTable({ transactions, newRows, sortField, sortDirection, onSort }: Props) {
+export default function TransactionTable({ transactions, newRows, sortField, sortDirection, onSort, onSubmitPayment }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [activeSlip, setActiveSlip] = useState<Slip | null>(null);
 
@@ -313,26 +371,39 @@ export default function TransactionTable({ transactions, newRows, sortField, sor
                   {/* Payment status */}
                   <td><PaymentStatusBadge status={tx.payment_status} /></td>
 
-                  {/* Transaction status */}
-                  <td><TxStatusBadge status={tx.transaction_status} /></td>
+                  {/* Transaction status — PAT-2036: แสดง "ชำระเกิน" เมื่อมี overpay */}
+                  <td><TxStatusBadgeWithOverpay tx={tx} /></td>
 
                   {/* Action */}
                   <td className="action-cell">
                     {(() => {
                       const { primary, secondary } = getActionButtons(tx);
                       const detailHref = `/transactions/${tx.transaction_no}`;
-                      const isNav = (label: string) => label === 'ดู' || label === 'ตรวจสอบ';
+                      // PAT-2036: "คืนเงิน" → detail page | PAT-2044: "ชำระเงิน"/"ชำระเพิ่ม" → modal
+                      const isLink = (label: string) =>
+                        label === 'ดู' || label === 'ตรวจสอบ' || label === 'คืนเงิน';
+                      const isPayAction = (label: string) =>
+                        label === 'ชำระเงิน' || label === 'ชำระเพิ่ม';
+                      const renderBtn = (btn: ActionBtn) => {
+                        if (isLink(btn.label)) {
+                          return <Link href={detailHref} className={`action-btn action-btn--${btn.variant}`}>{btn.label}</Link>;
+                        }
+                        if (isPayAction(btn.label)) {
+                          return (
+                            <button
+                              className={`action-btn action-btn--${btn.variant}`}
+                              onClick={() => onSubmitPayment?.(tx)}
+                            >
+                              {btn.label}
+                            </button>
+                          );
+                        }
+                        return <button className={`action-btn action-btn--${btn.variant}`}>{btn.label}</button>;
+                      };
                       return (
                         <div className="action-btns">
-                          {isNav(primary.label)
-                            ? <Link href={detailHref} className={`action-btn action-btn--${primary.variant}`}>{primary.label}</Link>
-                            : <button className={`action-btn action-btn--${primary.variant}`}>{primary.label}</button>
-                          }
-                          {secondary && (
-                            isNav(secondary.label)
-                              ? <Link href={detailHref} className={`action-btn action-btn--${secondary.variant}`}>{secondary.label}</Link>
-                              : <button className={`action-btn action-btn--${secondary.variant}`}>{secondary.label}</button>
-                          )}
+                          {renderBtn(primary)}
+                          {secondary && renderBtn(secondary)}
                         </div>
                       );
                     })()}

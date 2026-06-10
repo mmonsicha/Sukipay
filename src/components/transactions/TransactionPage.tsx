@@ -12,6 +12,7 @@ import FilterModal from './FilterModal';
 import TransactionTable from './TransactionTable';
 import NewTransactionsBanner from './NewTransactionsBanner';
 import EmptyState from './EmptyState';
+import SubmitPaymentModal, { type SubmitPaymentResult } from './SubmitPaymentModal';
 
 const POLL_INTERVAL_MS = 8_000; // 8s for prototype demo (production: 30_000)
 const ROWS_OPTIONS = [10, 50, 100, 200];
@@ -35,7 +36,14 @@ function matchesTab(tx: Transaction, tab: TabKey): boolean {
       return (tx.transaction_status === 'CLOSED' || tx.transaction_status === 'SETTLED') &&
         tx.payment_status === 'COMPLETED';
     case 'CANCELLED':
-      return tx.transaction_status === 'CANCELLED';
+      // CANCELLED แต่ REFUND_PENDING → แสดงใน Tab คืนเงินแทน
+      return tx.transaction_status === 'CANCELLED' && tx.payment_status !== 'REFUND_PENDING';
+    case 'OVERPAY':
+      // PAT-2036: overpay รอ Finance ตัดสินใจ
+      if ((tx.overpay_delta ?? 0) > 0 && !tx.overpay_acknowledged && tx.payment_status === 'COMPLETED') return true;
+      // PAT-2036: CANCELLED + REFUND_PENDING — order ถูกยกเลิก แต่ลูกค้าโอนเงินมาแล้ว รอ Finance คืนเงิน
+      if (tx.transaction_status === 'CANCELLED' && tx.payment_status === 'REFUND_PENDING') return true;
+      return false;
     default:
       return true;
   }
@@ -89,6 +97,9 @@ export default function TransactionPage() {
   const [pollCount, setPollCount] = useState(0);
   const [isTabVisible, setIsTabVisible] = useState(true);
   const [gotoPage, setGotoPage] = useState('');
+
+  // PAT-2044: Submit Payment modal
+  const [payingTx, setPayingTx] = useState<Transaction | null>(null);
 
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -203,6 +214,63 @@ export default function TransactionPage() {
 
   const handleClearFilters = () => { setFilters(DEFAULT_FILTERS); setCurrentPage(1); };
 
+  // PAT-2044: อัปเดต mock state หลัง payment submit สำเร็จ
+  const handlePaymentSuccess = useCallback((result: SubmitPaymentResult) => {
+    if (!payingTx) return;
+    const { payments: newPays, completedTotal } = result;
+
+    setTransactions(prev => prev.map(t => {
+      if (t.transaction_id !== payingTx.transaction_id) return t;
+
+      // Build updated payments list
+      const existingPayments = t.payments ?? [{
+        payment_id: `${t.transaction_id}-pay-1`,
+        seq: 1,
+        payment_channel: t.payment_channel,
+        bank_name: t.bank_name,
+        transfer_time: t.transfer_time,
+        amount: t.amount,
+        payment_status: t.payment_status,
+        slip_count: t.slip_count,
+        slips: t.slips,
+      }];
+
+      const addedPayments = newPays.map((p, i) => ({
+        payment_id: p.id,
+        seq: existingPayments.length + i + 1,
+        payment_channel: (p.method === 'cash' ? 'CASH' : 'BANK_TRANSFER') as import('@/lib/types').PaymentChannel,
+        bank_name: p.bankCode ? (['014','004','006','002','025'] as const).includes(p.bankCode as never)
+          ? { '014': 'ธนาคารไทยพาณิชย์', '004': 'ธนาคารกสิกรไทย', '006': 'ธนาคารกรุงไทย', '002': 'ธนาคารกรุงเทพ', '025': 'ธนาคารกรุงศรีอยุธยา' }[p.bankCode]
+          : undefined : undefined,
+        transfer_time: p.transferredAt,
+        amount: p.amount,
+        payment_status: p.status,
+        slip_count: p.slipPreview ? 1 : 0,
+      }));
+
+      const allPayments = [...existingPayments, ...addedPayments];
+
+      // ถ้ายอดครบ → CLOSED + payment_status COMPLETED
+      const isClosed = completedTotal >= t.amount;
+
+      return {
+        ...t,
+        is_expandable: true,
+        payments: allPayments,
+        payment_status: isClosed ? 'COMPLETED' : (
+          newPays.some(p => p.status === 'UNDER_REVIEW') ? 'UNDER_REVIEW' : t.payment_status
+        ),
+        transaction_status: isClosed ? 'CLOSED' : t.transaction_status,
+        updated_at: new Date().toISOString(),
+      };
+    }));
+
+    // ปิด modal เมื่อชำระครบ
+    if (completedTotal >= payingTx.amount) {
+      setPayingTx(null);
+    }
+  }, [payingTx]);
+
   const handleTabChange = (tab: TabKey) => {
     setActiveTab(tab);
     setCurrentPage(1);
@@ -294,6 +362,7 @@ export default function TransactionPage() {
                 sortField={sortField}
                 sortDirection={sortDir}
                 onSort={handleSort}
+                onSubmitPayment={setPayingTx}
               />
 
               {/* Pagination */}
@@ -338,6 +407,15 @@ export default function TransactionPage() {
           )}
         </main>
       </div>
+      {/* PAT-2044: Submit Payment modal */}
+      {payingTx && (
+        <SubmitPaymentModal
+          open={!!payingTx}
+          tx={payingTx}
+          onSuccess={handlePaymentSuccess}
+          onClose={() => setPayingTx(null)}
+        />
+      )}
     </div>
   );
 }

@@ -14,6 +14,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'UNDER_REVIEW', label: 'รอตรวจสอบ' },
   { key: 'COMPLETED',    label: 'สำเร็จ' },
   { key: 'CANCELLED',    label: 'ยกเลิก' },
+  { key: 'OVERPAY',      label: 'คืนเงิน' },
 ];
 
 function countForTab(txns: Transaction[], tab: TabKey): number | null {
@@ -22,7 +23,8 @@ function countForTab(txns: Transaction[], tab: TabKey): number | null {
     if (tab === 'PENDING')      return tx.payment_status === 'PENDING' && tx.transaction_status === 'PENDING';
     if (tab === 'UNDER_REVIEW') return tx.payment_status === 'UNDER_REVIEW';
     if (tab === 'COMPLETED')    return tx.transaction_status === 'COMPLETED' || tx.transaction_status === 'CLOSED';
-    if (tab === 'CANCELLED')    return tx.transaction_status === 'CANCELLED' || tx.transaction_status === 'FAILED' || tx.transaction_status === 'EXPIRED';
+    if (tab === 'CANCELLED')    return (tx.transaction_status === 'CANCELLED' && tx.payment_status !== 'REFUND_PENDING') || tx.transaction_status === 'FAILED' || tx.transaction_status === 'EXPIRED';
+    if (tab === 'OVERPAY')      return ((tx.overpay_delta ?? 0) > 0 && !tx.overpay_acknowledged && tx.payment_status === 'COMPLETED') || (tx.transaction_status === 'CANCELLED' && tx.payment_status === 'REFUND_PENDING');
     return false;
   }).length;
   return n;
