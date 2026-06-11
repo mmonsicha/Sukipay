@@ -142,6 +142,9 @@ export interface Transaction {
   // PAT-2036: Overpay decision fields
   overpay_delta?: number;          // ยอดที่ชำระเกิน (บาท) — set by PAT-2288
   overpay_acknowledged?: boolean;  // true เมื่อ Finance กด "ถือเป็น Tip"
+  // OMS-initiated cancellation fields
+  cancellation_reason?: string;    // reason code sent by OMS (same set as refund reasons)
+  cancellation_note?: string;      // optional note from OMS
 }
 
 export interface Store {

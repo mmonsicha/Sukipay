@@ -738,8 +738,100 @@ function createCancelledRefundPendingTransaction(): Transaction {
     slips: [slip],
     payment_status: 'REFUND_PENDING',
     transaction_status: 'CANCELLED',
+    cancellation_reason: 'order_cancelled_by_customer',
+    cancellation_note: 'ลูกค้าแจ้งผ่านระบบ OMS ว่าต้องการยกเลิก order',
     created_at: new Date(now.getTime() - 100 * 60_000).toISOString(),
     updated_at: new Date(now.getTime() -  19 * 60_000).toISOString(),
+    is_expandable: true,
+    payments: [payment],
+    state_history: stateHistory,
+    audit_trail: auditTrail,
+  };
+}
+
+// ── OMS-cancelled: CASH payment ──────────────────────────────────────────────
+// Scenario: OMS ยกเลิก order เพราะสินค้าหมด ลูกค้าชำระเงินสดไปแล้ว
+// System ต้องคืนเงินผ่านโอนธนาคาร (Finance ระบุบัญชีปลายทาง)
+function createOmsCancelledCashTransaction(): Transaction {
+  const now = new Date('2026-06-10T09:30:00+07:00');
+  const txId = 'tx-oms-cancelled-cash-demo';
+  const amount = 3200;
+
+  const payment: Payment = {
+    payment_id: 'pay-omscash-1',
+    seq: 1,
+    payment_channel: 'CASH',
+    amount,
+    payment_status: 'REFUND_PENDING',
+    slip_count: 0,
+  };
+
+  const auditTrail: AuditTrailEntry[] = ([
+    {
+      id: 'audit-omscash-1',
+      transaction_id: txId,
+      payment_id: payment.payment_id,
+      event_type: 'PAYMENT_ADDED' as const,
+      operator_type: 'user' as const,
+      operator_name: 'สมชาย ขาย',
+      operator_role: 'Cashier',
+      created_at: new Date(now.getTime() - 80 * 60_000).toISOString(),
+    },
+    {
+      id: 'audit-omscash-2',
+      transaction_id: txId,
+      payment_id: payment.payment_id,
+      event_type: 'PAYMENT_COMPLETED' as const,
+      operator_type: 'user' as const,
+      operator_name: 'วิไล จันทร์',
+      operator_role: 'Finance Manager',
+      created_at: new Date(now.getTime() - 70 * 60_000).toISOString(),
+    },
+    {
+      id: 'audit-omscash-3',
+      transaction_id: txId,
+      event_type: 'TRANSACTION_CANCELLED' as const,
+      operator_type: 'system' as const,
+      created_at: new Date(now.getTime() - 30 * 60_000).toISOString(),
+    },
+    {
+      id: 'audit-omscash-4',
+      transaction_id: txId,
+      payment_id: payment.payment_id,
+      event_type: 'PAYMENT_REFUND_REQUESTED' as const,
+      operator_type: 'system' as const,
+      metadata: { refund_amount: amount },
+      created_at: new Date(now.getTime() - 29 * 60_000).toISOString(),
+    },
+  ] satisfies AuditTrailEntry[]).sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
+
+  const stateHistory: StateHistoryEntry[] = [
+    { from_state: null,      to_state: 'PENDING',   at: new Date(now.getTime() - 90 * 60_000).toISOString() },
+    { from_state: 'PENDING', to_state: 'CLOSED',    at: new Date(now.getTime() - 70 * 60_000).toISOString() },
+    { from_state: 'CLOSED',  to_state: 'CANCELLED', at: new Date(now.getTime() - 30 * 60_000).toISOString() },
+  ];
+
+  return {
+    transaction_id: txId,
+    transaction_no: 'TXN-20260610-OMSCASH',
+    order_no: 'SO9876543210',
+    order_serial: 'SC-202606-00088',
+    order_total: amount,
+    customer: { name: 'ธนกร วงษ์สุวรรณ', contact: '091-234-5678', company_name: '' },
+    store_name: 'สุขุมวิก 20',
+    store_id: 'store-001',
+    payment_channel: 'CASH',
+    amount,
+    currency: 'THB',
+    slip_count: 0,
+    payment_status: 'REFUND_PENDING',
+    transaction_status: 'CANCELLED',
+    cancellation_reason: 'out_of_stock',
+    cancellation_note: 'Warehouse ยืนยันว่าสินค้าหมด ไม่สามารถจัดส่งได้',
+    created_at: new Date(now.getTime() - 90 * 60_000).toISOString(),
+    updated_at: new Date(now.getTime() - 29 * 60_000).toISOString(),
     is_expandable: true,
     payments: [payment],
     state_history: stateHistory,
@@ -1246,10 +1338,186 @@ function createCashVoidShowcaseTransaction(): Transaction {
   };
 }
 
+// ── OMS-cancelled: ยกเลิกก่อนมีการชำระ ─────────────────────────────────────
+// Scenario: OMS ยกเลิก order ก่อนลูกค้าชำระเงิน ไม่ต้องคืนเงิน ดูรายละเอียดได้อย่างเดียว
+function createOmsCancelledBeforePaymentTransaction(): Transaction {
+  const now = new Date('2026-06-11T08:00:00+07:00');
+  const txId = 'tx-oms-cancelled-nopay-demo';
+  const amount = 5600;
+
+  const auditTrail: AuditTrailEntry[] = ([
+    {
+      id: 'audit-omsnopay-1',
+      transaction_id: txId,
+      event_type: 'TRANSACTION_CREATED' as const,
+      operator_type: 'system' as const,
+      created_at: new Date(now.getTime() - 45 * 60_000).toISOString(),
+    },
+    {
+      id: 'audit-omsnopay-2',
+      transaction_id: txId,
+      event_type: 'TRANSACTION_CANCELLED' as const,
+      operator_type: 'system' as const,
+      created_at: new Date(now.getTime() - 10 * 60_000).toISOString(),
+    },
+  ] satisfies AuditTrailEntry[]).sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
+
+  const stateHistory: StateHistoryEntry[] = [
+    { from_state: null,       to_state: 'PENDING',    at: new Date(now.getTime() - 45 * 60_000).toISOString() },
+    { from_state: 'PENDING',  to_state: 'CANCELLED',  at: new Date(now.getTime() - 10 * 60_000).toISOString() },
+  ];
+
+  return {
+    transaction_id: txId,
+    transaction_no: 'TXN-20260611-OMSNOPAY',
+    order_no: 'SO1122334455',
+    order_serial: 'SC-202606-00099',
+    order_total: amount,
+    customer: { name: 'สุรีย์ วงศ์สุข', contact: '098-765-4321', company_name: '' },
+    store_name: 'บิเกิ้ลชอป',
+    store_id: 'store-002',
+    payment_channel: 'BANK_TRANSFER',
+    amount,
+    currency: 'THB',
+    slip_count: 0,
+    payment_status: 'PENDING',
+    transaction_status: 'CANCELLED',
+    cancellation_reason: 'product_issue',
+    cancellation_note: 'ลูกค้าเปลี่ยนใจ สินค้ามีตำหนิ',
+    created_at: new Date(now.getTime() - 45 * 60_000).toISOString(),
+    updated_at: new Date(now.getTime() - 10 * 60_000).toISOString(),
+    is_expandable: false,
+    state_history: stateHistory,
+    audit_trail: auditTrail,
+  };
+}
+
+// ── OMS-cancelled: หลัง settled (SETTLED → CANCELLED) ──────────────────────
+// Scenario: ลูกค้าโอนเงินผ่านธนาคาร บัญชีตัดแล้ว (SETTLED)
+// OMS ยกเลิกภายหลัง → ต้องคืนเงินผ่านโอนธนาคาร (RefundDialog + preFilledReason)
+function createOmsCancelledAfterSettledTransaction(): Transaction {
+  const now = new Date('2026-06-07T15:00:00+07:00');
+  const txId = 'tx-oms-cancelled-settled-demo';
+  const amount = 7800;
+
+  const slip: Slip = {
+    slip_id: 'slip-omsstl-1',
+    image_url: SLIP_IMAGES[0],
+    uploaded_at: new Date(now.getTime() - 200 * 60_000).toISOString(),
+    amount,
+    transfer_time: new Date(now.getTime() - 210 * 60_000).toISOString(),
+    bank_name: 'ธนาคารไทยพาณิชย์',
+    account_number: '4001234567',
+    account_holder: 'นายวีระ สมใจ',
+  };
+
+  const payment: Payment = {
+    payment_id: 'pay-omsstl-1',
+    seq: 1,
+    payment_channel: 'BANK_TRANSFER',
+    bank_name: 'ธนาคารไทยพาณิชย์',
+    transfer_time: slip.transfer_time,
+    amount,
+    payment_status: 'REFUND_PENDING',
+    slip_count: 1,
+    slips: [slip],
+    slip_id: slip.slip_id,
+    account_holder: slip.account_holder,
+  };
+
+  const auditTrail: AuditTrailEntry[] = ([
+    {
+      id: 'audit-omsstl-1',
+      transaction_id: txId,
+      payment_id: payment.payment_id,
+      event_type: 'PAYMENT_ADDED' as const,
+      operator_type: 'user' as const,
+      operator_name: 'สมชาย ขาย',
+      operator_role: 'Cashier',
+      created_at: new Date(now.getTime() - 210 * 60_000).toISOString(),
+    },
+    {
+      id: 'audit-omsstl-2',
+      transaction_id: txId,
+      payment_id: payment.payment_id,
+      event_type: 'PAYMENT_COMPLETED' as const,
+      operator_type: 'user' as const,
+      operator_name: 'วิไล จันทร์',
+      operator_role: 'Finance Manager',
+      created_at: new Date(now.getTime() - 180 * 60_000).toISOString(),
+    },
+    {
+      id: 'audit-omsstl-3',
+      transaction_id: txId,
+      event_type: 'TRANSACTION_SETTLED' as const,
+      operator_type: 'system' as const,
+      created_at: new Date(now.getTime() - 60 * 60_000).toISOString(),
+    },
+    {
+      id: 'audit-omsstl-4',
+      transaction_id: txId,
+      event_type: 'TRANSACTION_CANCELLED' as const,
+      operator_type: 'system' as const,
+      created_at: new Date(now.getTime() - 20 * 60_000).toISOString(),
+    },
+    {
+      id: 'audit-omsstl-5',
+      transaction_id: txId,
+      payment_id: payment.payment_id,
+      event_type: 'PAYMENT_REFUND_REQUESTED' as const,
+      operator_type: 'system' as const,
+      metadata: { refund_amount: amount },
+      created_at: new Date(now.getTime() - 19 * 60_000).toISOString(),
+    },
+  ] satisfies AuditTrailEntry[]).sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
+
+  const stateHistory: StateHistoryEntry[] = [
+    { from_state: null,        to_state: 'PENDING',    at: new Date(now.getTime() - 220 * 60_000).toISOString() },
+    { from_state: 'PENDING',   to_state: 'CLOSED',     at: new Date(now.getTime() - 180 * 60_000).toISOString() },
+    { from_state: 'CLOSED',    to_state: 'SETTLED',    at: new Date(now.getTime() -  60 * 60_000).toISOString() },
+    { from_state: 'SETTLED',   to_state: 'CANCELLED',  at: new Date(now.getTime() -  20 * 60_000).toISOString() },
+  ];
+
+  return {
+    transaction_id: txId,
+    transaction_no: 'TXN-20260607-OMSSTLD',
+    order_no: 'SO5544332211',
+    order_serial: 'SC-202606-00077',
+    order_total: amount,
+    customer: { name: 'วีระ สมใจ', contact: '092-111-2222', company_name: 'บริษัท วีระ เทรด จำกัด' },
+    store_name: 'MRT ห้วยขวาง',
+    store_id: 'store-004',
+    payment_channel: 'BANK_TRANSFER',
+    bank_name: 'ธนาคารไทยพาณิชย์',
+    transfer_time: slip.transfer_time,
+    amount,
+    currency: 'THB',
+    slip_count: 1,
+    slips: [slip],
+    payment_status: 'REFUND_PENDING',
+    transaction_status: 'CANCELLED',
+    cancellation_reason: 'cashier_error',
+    cancellation_note: 'Cashier บันทึกราคาสินค้าผิด OMS แก้ไขและยกเลิก order',
+    created_at: new Date(now.getTime() - 220 * 60_000).toISOString(),
+    updated_at: new Date(now.getTime() -  19 * 60_000).toISOString(),
+    is_expandable: true,
+    payments: [payment],
+    state_history: stateHistory,
+    audit_trail: auditTrail,
+  };
+}
+
 export const INITIAL_TRANSACTIONS: Transaction[] = [
   createOverpayShowcaseTransaction(),
   createFreshOverpayDemoTransaction(),
   createCancelledRefundPendingTransaction(),
+  createOmsCancelledCashTransaction(),
+  createOmsCancelledAfterSettledTransaction(),
+  createOmsCancelledBeforePaymentTransaction(),
   createCashVoidShowcaseTransaction(),
   createClosedBankTransferDemoTransaction(),
   createSettledManualRefundDemoTransaction(),

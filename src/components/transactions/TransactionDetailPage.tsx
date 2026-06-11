@@ -47,6 +47,17 @@ function maskAccount(acct: string): string {
   return 'x'.repeat(acct.length - 4) + acct.slice(-4);
 }
 
+// ── Cancellation reason labels (shared with RefundDialog reason codes) ───────
+
+const CANCELLATION_REASON_LABELS: Record<string, string> = {
+  cashier_error:                 'คิดเงินผิด / แก้ไขยอดโดย Cashier',
+  product_issue:                 'สินค้ามีปัญหา / ลูกค้าขอเคลม',
+  out_of_stock:                  'สินค้าหมดสต็อก (พบทีหลัง)',
+  order_cancel:                  'ยกเลิก Order หลังชำระ',
+  order_cancelled_by_customer:   'ลูกค้าขอยกเลิก',
+  other:                         'อื่นๆ',
+};
+
 // ── Enum labels ──────────────────────────────────────────────────────────────
 
 const CHANNEL_LABELS: Record<PaymentChannel, string> = {
@@ -788,8 +799,11 @@ export default function TransactionDetailPage() {
   const [showRefundDialog, setShowRefundDialog] = useState(false);
   const [refundCancelMode, setRefundCancelMode] = useState(false);
   const [refundPreselectedPaymentId, setRefundPreselectedPaymentId] = useState<string | undefined>(undefined);
-  const [showTipDialog, setShowTipDialog]       = useState(false);
-  const [showVoidDialog, setShowVoidDialog]     = useState(false);
+  const [refundPreFilledReason, setRefundPreFilledReason] = useState<string | undefined>(undefined);
+  const [showTipDialog, setShowTipDialog]           = useState(false);
+  const [showVoidDialog, setShowVoidDialog]         = useState(false);
+  const [voidIsOmsCancelled, setVoidIsOmsCancelled] = useState(false);
+  const [voidPreFilledReason, setVoidPreFilledReason] = useState<string | undefined>(undefined);
   const [bodyTab, setBodyTab]                   = useState<'payments' | 'history'>('payments');
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
@@ -814,15 +828,36 @@ export default function TransactionDetailPage() {
     } else {
       setRefundPreselectedPaymentId(undefined);
       setRefundCancelMode(true);
+      setRefundPreFilledReason(undefined);
       setShowRefundDialog(true);
     }
   }
 
-  // PAT-2038: handle void success — VOID_PREPARED → VOID (simulate async)
+  // PAT-2038: handle void success
   function handleVoidSuccess(reason: string) {
     setShowVoidDialog(false);
-    setLocalTxStatus('VOID_PREPARED');
 
+    // OMS-cancelled: tx is already CANCELLED — just confirm cash was returned
+    if (voidIsOmsCancelled) {
+      setVoidIsOmsCancelled(false);
+      setVoidPreFilledReason(undefined);
+      setLocalPayments(prev => prev.map(p => ({ ...p, payment_status: 'VOIDED' as const })));
+      setLocalAuditTrail(prev => [
+        {
+          id: `audit-oms-void-${Date.now()}`,
+          transaction_id: tx!.transaction_id,
+          event_type: 'TRANSACTION_VOIDED' as const,
+          operator_type: 'user' as const,
+          created_at: new Date().toISOString(),
+        },
+        ...prev,
+      ]);
+      showToast('ยืนยันการคืนเงินสดเรียบร้อย');
+      return;
+    }
+
+    // SukiPay-initiated void: CLOSED → VOID_PREPARED → VOID (simulate async)
+    setLocalTxStatus('VOID_PREPARED');
     const now = new Date().toISOString();
     setLocalStateHistory(prev => [...prev, { from_state: 'CLOSED', to_state: 'VOID_PREPARED', at: now }]);
 
@@ -844,11 +879,12 @@ export default function TransactionDetailPage() {
     }, 1200);
   }
 
-  // Eligible payments for refund — all COMPLETED payments qualify
-  // (Scenarios: overpay → คืนเงินส่วนเกิน, SETTLED → ยกเลิกออเดอร์/คืนเงิน)
+  // Eligible payments for refund — COMPLETED payments qualify for standard flow
+  // OMS-cancelled: also include REFUND_PENDING payments (system auto-created refund request)
   // CASH payments have no pre-filled bank info; Finance Manager enters destination account
+  const isOmsCancelled = !!tx?.cancellation_reason;
   const eligiblePayments: EligiblePayment[] = localPayments
-    .filter(p => p.payment_status === 'COMPLETED')
+    .filter(p => p.payment_status === 'COMPLETED' || (isOmsCancelled && p.payment_status === 'REFUND_PENDING'))
     .map(p => ({
       payment_id: p.payment_id,
       seq: p.seq,
@@ -868,7 +904,32 @@ export default function TransactionDetailPage() {
   function handleOpenRefund(paymentId?: string) {
     setRefundPreselectedPaymentId(paymentId);
     setRefundCancelMode(false);
+    setRefundPreFilledReason(undefined);
     setShowRefundDialog(true);
+  }
+
+  // ── Open correct dialog from OMS-cancelled banner ──────────────────────────
+  // - CLOSED + all CASH → VoidDialog (คืนเงินสดหน้าร้าน, ยืนยัน checkbox)
+  // - CLOSED + BANK_TRANSFER หรือ SETTLED + ทุก channel → RefundDialog (โอนธนาคาร)
+  function handleOmsCancelledRefund() {
+    const preCancelStatus = tx?.state_history?.find(h => h.to_state === 'CANCELLED')?.from_state;
+    const isClosedAllCash =
+      preCancelStatus === 'CLOSED' &&
+      localPayments.length > 0 &&
+      localPayments.every(p => p.payment_channel === 'CASH');
+
+    if (isClosedAllCash) {
+      setVoidIsOmsCancelled(true);
+      setVoidPreFilledReason(
+        CANCELLATION_REASON_LABELS[tx?.cancellation_reason ?? ''] ?? tx?.cancellation_reason,
+      );
+      setShowVoidDialog(true);
+    } else {
+      setRefundPreselectedPaymentId(undefined);
+      setRefundCancelMode(true);
+      setRefundPreFilledReason(tx?.cancellation_reason);
+      setShowRefundDialog(true);
+    }
   }
 
   // ── Refund dialog success ──────────────────────────────────────────────────
@@ -1032,8 +1093,42 @@ export default function TransactionDetailPage() {
             />
           )}
 
-          {/* ── PAT-2036: Cancelled + Refund Pending Banner ── */}
-          {tx.transaction_status === 'CANCELLED' && tx.payment_status === 'REFUND_PENDING' && (
+          {/* ── OMS-cancelled + Refund Pending Banner ── */}
+          {tx.transaction_status === 'CANCELLED' && tx.payment_status === 'REFUND_PENDING' && tx.cancellation_reason && (
+            <div className="overpay-banner overpay-banner--refund-pending" role="status">
+              <div className="overpay-banner-icon overpay-banner-icon--refund-pending">
+                <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+                </svg>
+              </div>
+              <div className="overpay-banner-body">
+                <div className="overpay-banner-title overpay-banner-title--refund-pending">
+                  ถูกยกเลิกโดย OMS — รอดำเนินการคืนเงิน ฿{formatAmount(tx.amount)}
+                </div>
+                <div className="overpay-banner-subtitle">
+                  <span>
+                    เหตุผล: <strong>{CANCELLATION_REASON_LABELS[tx.cancellation_reason] ?? tx.cancellation_reason}</strong>
+                  </span>
+                  {tx.cancellation_note && (
+                    <span> · หมายเหตุ: {tx.cancellation_note}</span>
+                  )}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="overpay-banner-action-btn"
+                onClick={handleOmsCancelledRefund}
+              >
+                ดำเนินการคืนเงิน
+                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7"/>
+                </svg>
+              </button>
+            </div>
+          )}
+
+          {/* ── Non-OMS Cancelled + Refund Pending Banner (legacy) ── */}
+          {tx.transaction_status === 'CANCELLED' && tx.payment_status === 'REFUND_PENDING' && !tx.cancellation_reason && (
             <div className="overpay-banner overpay-banner--refund-pending" role="status">
               <div className="overpay-banner-icon overpay-banner-icon--refund-pending">
                 <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -1046,6 +1141,31 @@ export default function TransactionDetailPage() {
                 </div>
                 <div className="overpay-banner-subtitle">
                   Order นี้ถูกยกเลิก — ระบบสร้างคำขอคืนเงินให้อัตโนมัติแล้ว รอ Finance ดำเนินการโอนคืน
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── OMS-cancelled ก่อนชำระ — แสดงเหตุผล ไม่ต้องคืนเงิน ── */}
+          {tx.transaction_status === 'CANCELLED' && tx.payment_status !== 'REFUND_PENDING' && tx.cancellation_reason && (
+            <div className="overpay-banner overpay-banner--cancelled-info" role="status">
+              <div className="overpay-banner-icon overpay-banner-icon--cancelled-info">
+                <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path strokeLinecap="round" d="M12 8v4m0 4h.01"/>
+                </svg>
+              </div>
+              <div className="overpay-banner-body">
+                <div className="overpay-banner-title overpay-banner-title--cancelled-info">
+                  ถูกยกเลิกโดย OMS — ไม่มีการชำระเงิน
+                </div>
+                <div className="overpay-banner-subtitle">
+                  <span>
+                    เหตุผล: <strong>{CANCELLATION_REASON_LABELS[tx.cancellation_reason] ?? tx.cancellation_reason}</strong>
+                  </span>
+                  {tx.cancellation_note && (
+                    <span> · หมายเหตุ: {tx.cancellation_note}</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -1141,6 +1261,7 @@ export default function TransactionDetailPage() {
         eligiblePayments={eligiblePayments}
         preSelectedPaymentId={refundPreselectedPaymentId}
         cancelMode={refundCancelMode}
+        preFilledReason={refundPreFilledReason}
         onSuccess={handleRefundSuccess}
         onClose={() => setShowRefundDialog(false)}
         onClickTip={!refundCancelMode && overpayDelta > 0 ? () => {
@@ -1161,8 +1282,13 @@ export default function TransactionDetailPage() {
         open={showVoidDialog}
         transactionId={tx.transaction_no}
         cashAmount={localPayments.filter(p => p.payment_channel === 'CASH').reduce((s, p) => s + p.amount, 0)}
+        preFilledReason={voidPreFilledReason}
         onSuccess={handleVoidSuccess}
-        onClose={() => setShowVoidDialog(false)}
+        onClose={() => {
+          setShowVoidDialog(false);
+          setVoidIsOmsCancelled(false);
+          setVoidPreFilledReason(undefined);
+        }}
       />
 
       {/* ── Toast ── */}

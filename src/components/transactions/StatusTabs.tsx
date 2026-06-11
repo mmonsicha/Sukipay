@@ -23,8 +23,9 @@ function countForTab(txns: Transaction[], tab: TabKey): number | null {
     if (tab === 'PENDING')      return tx.payment_status === 'PENDING' && tx.transaction_status === 'PENDING';
     if (tab === 'UNDER_REVIEW') return tx.payment_status === 'UNDER_REVIEW';
     if (tab === 'COMPLETED')    return tx.transaction_status === 'COMPLETED' || tx.transaction_status === 'CLOSED';
-    if (tab === 'CANCELLED')    return (tx.transaction_status === 'CANCELLED' && tx.payment_status !== 'REFUND_PENDING') || tx.transaction_status === 'FAILED' || tx.transaction_status === 'EXPIRED';
-    if (tab === 'OVERPAY')      return ((tx.overpay_delta ?? 0) > 0 && !tx.overpay_acknowledged && tx.payment_status === 'COMPLETED') || (tx.transaction_status === 'CANCELLED' && tx.payment_status === 'REFUND_PENDING');
+    // OMS-cancelled (has cancellation_reason) goes to CANCELLED tab even if REFUND_PENDING
+    if (tab === 'CANCELLED')    return tx.transaction_status === 'CANCELLED' && (tx.payment_status !== 'REFUND_PENDING' || !!tx.cancellation_reason) || tx.transaction_status === 'FAILED' || tx.transaction_status === 'EXPIRED';
+    if (tab === 'OVERPAY')      return ((tx.overpay_delta ?? 0) > 0 && !tx.overpay_acknowledged && tx.payment_status === 'COMPLETED') || (tx.transaction_status === 'CANCELLED' && tx.payment_status === 'REFUND_PENDING' && !tx.cancellation_reason);
     return false;
   }).length;
   return n;

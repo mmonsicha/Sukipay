@@ -134,10 +134,11 @@ interface RefundDialogProps {
   alreadyRefunded: number;
   eligiblePayments: EligiblePayment[];
   preSelectedPaymentId?: string;
-  cancelMode?: boolean;  // true = ยกเลิกออเดอร์ flow; false/undefined = overpay refund flow
+  cancelMode?: boolean;        // true = ยกเลิกออเดอร์ flow; false/undefined = overpay refund flow
+  preFilledReason?: string;    // เหตุผลจาก OMS — ถ้าระบุจะซ่อน reason selector
   onSuccess: (result: RefundSubmitResult) => void;
   onClose: () => void;
-  onClickTip?: () => void;  // overpay-only: switch to TipConfirmDialog instead
+  onClickTip?: () => void;     // overpay-only: switch to TipConfirmDialog instead
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -152,6 +153,7 @@ export default function RefundDialog({
   eligiblePayments,
   preSelectedPaymentId,
   cancelMode = false,
+  preFilledReason,
   onSuccess,
   onClose,
   onClickTip,
@@ -187,7 +189,7 @@ export default function RefundDialog({
       setPhase('form');
       const initPayId = preSelectedPaymentId ?? eligiblePayments[0]?.payment_id ?? '';
       setSelectedPaymentId(initPayId);
-      setReason(isManualMode ? '' : 'overpay');
+      setReason(preFilledReason ? (preFilledReason as RefundReasonCode) : isManualMode ? '' : 'overpay');
 
       if (isManualMode) {
         const selPay = eligiblePayments.find(p => p.payment_id === initPayId);
@@ -242,8 +244,8 @@ export default function RefundDialog({
   function validate(): boolean {
     const next: Record<string, string> = {};
     if (!selectedPaymentId) next.payment = 'กรุณาเลือกช่องทางที่จะโอนคืน';
-    // reason required only in cancel/manual mode; overpay mode auto-sets 'overpay'
-    if (isManualMode && !reason) next.reason = 'กรุณาเลือกเหตุผลในการคืนเงิน';
+    // reason required only in cancel/manual mode; overpay or preFilledReason auto-sets reason
+    if (isManualMode && !preFilledReason && !reason) next.reason = 'กรุณาเลือกเหตุผลในการคืนเงิน';
     if (selectedReasonDef?.requiresNote && !note.trim()) {
       next.note = 'กรุณาระบุรายละเอียดสำหรับเหตุผลนี้';
     }
@@ -317,7 +319,7 @@ export default function RefundDialog({
 
   const fieldsComplete = !!(
     selectedPaymentId &&
-    (reason || !isManualMode) &&
+    (reason || !isManualMode || !!preFilledReason) &&
     amount &&
     accountName &&
     bankCode &&
@@ -364,7 +366,15 @@ export default function RefundDialog({
                 <div id="refund-dialog-title" className="dialog-title">
                   {cancelMode ? 'ยกเลิกออเดอร์ / คืนเงิน' : 'คืนเงินให้ลูกค้า'}
                 </div>
-                {cancelMode ? (
+                {preFilledReason ? (
+                  <div className="dialog-subtitle refund-manual-badge">
+                    <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <circle cx="12" cy="12" r="10"/>
+                      <path strokeLinecap="round" d="M12 8v4m0 4h.01"/>
+                    </svg>
+                    ยกเลิกโดย OMS — เหตุผลถูกระบุมาจากระบบ ระบุข้อมูลบัญชีเพื่อโอนเงินคืน
+                  </div>
+                ) : cancelMode ? (
                   <div className="dialog-subtitle refund-manual-badge">
                     <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                       <circle cx="12" cy="12" r="10"/>
@@ -405,8 +415,16 @@ export default function RefundDialog({
 
             <form className="dialog-body refund-dialog-body" onSubmit={handleSubmit} noValidate>
 
-              {/* ── Reason selector — ซ่อนในโหมด Overpay (เหตุผลชัดเจนอยู่แล้ว) ── */}
-              {isManualMode && (
+              {/* ── Reason selector — ซ่อนในโหมด Overpay หรือ OMS-cancelled (เหตุผลถูกส่งมาแล้ว) ── */}
+              {isManualMode && preFilledReason && (
+                <div className="dialog-field-group">
+                  <label className="dialog-label">เหตุผลในการยกเลิก</label>
+                  <div className="refund-prefilled-reason">
+                    {REFUND_REASONS.find(r => r.value === preFilledReason)?.label ?? preFilledReason}
+                  </div>
+                </div>
+              )}
+              {isManualMode && !preFilledReason && (
                 <div className="dialog-field-group">
                   <label className="dialog-label">
                     เหตุผลในการยกเลิก / คืนเงิน <span className="dialog-required">*</span>

@@ -1438,6 +1438,29 @@ body {
   font-family: 'DB HeaventRounded', 'Roboto Mono', monospace;
 }
 
+.void-dialog-oms-badge {
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #c2410c;
+  background: #ffedd5;
+  border: 1px solid #fed7aa;
+  border-radius: 6px;
+  padding: 4px 10px;
+  display: inline-block;
+}
+
+.void-prefilled-reason {
+  padding: 10px 14px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #15803d;
+  margin-bottom: 4px;
+}
+
 .void-dialog-amount-section {
   padding: 20px 24px;
   text-align: center;
@@ -2784,6 +2807,22 @@ body {
   font-weight: 600;
 }
 
+/* OMS-cancelled ก่อนชำระ — neutral info style */
+.overpay-banner--cancelled-info {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.overpay-banner-icon--cancelled-info {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.overpay-banner-title--cancelled-info {
+  color: #334155;
+  font-weight: 600;
+}
+
 .overpay-banner-icon {
   width: 34px;
   height: 34px;
@@ -2833,6 +2872,27 @@ body {
   align-items: center;
   flex-shrink: 0;
   flex-wrap: wrap;
+}
+
+.overpay-banner-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #c2410c;
+  background: none;
+  border: 1px solid #fb923c;
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.12s, color 0.12s;
+}
+.overpay-banner-action-btn:hover {
+  background: #ffedd5;
+  color: #9a3412;
 }
 
 .overpay-btn {
@@ -4161,6 +4221,16 @@ body {
 /* ══════════════════════════════════════════════════════════════════
    RefundDialog — reason selector (PAT-2036 Option C)
    ══════════════════════════════════════════════════════════════════ */
+
+.refund-prefilled-reason {
+  padding: 10px 14px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #15803d;
+}
 
 .refund-reason-list {
   display: flex;

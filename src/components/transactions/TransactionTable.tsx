@@ -115,15 +115,36 @@ function getActionButtons(tx: Transaction): { primary: ActionBtn; secondary?: Ac
     };
   }
 
-  // PAT-2036: CANCELLED + REFUND_PENDING — Finance ต้องดำเนินการคืนเงิน
+  // OMS-cancelled + REFUND_PENDING — มีการชำระแล้ว Finance ต้องคืนเงิน (ไม่ต้องระบุเหตุผล)
+  const isOmsCancelledNeedsRefund =
+    tx.transaction_status === 'CANCELLED' &&
+    tx.payment_status === 'REFUND_PENDING' &&
+    !!tx.cancellation_reason;
+
+  if (isOmsCancelledNeedsRefund) {
+    return {
+      primary:   { label: 'คืนเงิน',       variant: 'brand' },
+      secondary: { label: 'ดูรายละเอียด', variant: 'view'  },
+    };
+  }
+
+  // OMS-cancelled + ยังไม่ชำระ — ดูรายละเอียดได้อย่างเดียว
+  const isOmsCancelledNoPay =
+    tx.transaction_status === 'CANCELLED' &&
+    tx.payment_status !== 'REFUND_PENDING' &&
+    !!tx.cancellation_reason;
+
+  if (isOmsCancelledNoPay) {
+    return { primary: { label: 'ดูรายละเอียด', variant: 'view' } };
+  }
+
+  // CANCELLED + REFUND_PENDING (non-OMS) — Finance ต้องดำเนินการคืนเงิน
   const isCancelledRefundPending =
     tx.transaction_status === 'CANCELLED' &&
     tx.payment_status === 'REFUND_PENDING';
 
   if (isCancelledRefundPending) {
-    return {
-      primary:   { label: 'ดูรายละเอียด', variant: 'brand' },
-    };
+    return { primary: { label: 'ดูรายละเอียด', variant: 'brand' } };
   }
 
   const isTerminal =
@@ -137,7 +158,7 @@ function getActionButtons(tx: Transaction): { primary: ActionBtn; secondary?: Ac
 
   // Terminal / completed states → view only
   if (isTerminal || isCompleted) {
-    return { primary: { label: 'ดู', variant: 'view' } };
+    return { primary: { label: 'ดูรายละเอียด', variant: 'view' } };
   }
 
   // รอตรวจสอบ
@@ -379,9 +400,9 @@ export default function TransactionTable({ transactions, newRows, sortField, sor
                     {(() => {
                       const { primary, secondary } = getActionButtons(tx);
                       const detailHref = `/transactions/${tx.transaction_no}`;
-                      // PAT-2036: "คืนเงิน" → detail page | PAT-2044: "ชำระเงิน"/"ชำระเพิ่ม" → modal
+                      // Buttons that navigate to detail page
                       const isLink = (label: string) =>
-                        label === 'ดู' || label === 'ตรวจสอบ' || label === 'คืนเงิน';
+                        label === 'ดู' || label === 'ดูรายละเอียด' || label === 'ตรวจสอบ' || label === 'คืนเงิน';
                       const isPayAction = (label: string) =>
                         label === 'ชำระเงิน' || label === 'ชำระเพิ่ม';
                       const renderBtn = (btn: ActionBtn) => {

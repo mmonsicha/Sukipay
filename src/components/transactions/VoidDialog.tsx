@@ -33,11 +33,12 @@ export interface VoidDialogProps {
   open: boolean;
   transactionId: string;
   cashAmount: number;
-  onSuccess: (reason: VoidReason) => void;
+  preFilledReason?: string;  // label ที่แสดงจาก OMS — ถ้าระบุจะซ่อน reason selector
+  onSuccess: (reason: string) => void;
   onClose: () => void;
 }
 
-export default function VoidDialog({ open, transactionId, cashAmount, onSuccess, onClose }: VoidDialogProps) {
+export default function VoidDialog({ open, transactionId, cashAmount, preFilledReason, onSuccess, onClose }: VoidDialogProps) {
   const [mounted, setMounted]           = useState(false);
   const [reason, setReason]             = useState<VoidReason | ''>('');
   const [cashConfirmed, setCashConfirmed] = useState(false);
@@ -65,16 +66,20 @@ export default function VoidDialog({ open, transactionId, cashAmount, onSuccess,
     return () => document.removeEventListener('keydown', handler);
   }, [open, handleClose]);
 
-  const selectedReason  = VOID_REASONS.find(r => r.value === reason);
-  const needsCashConfirm = selectedReason?.cashConfirm ?? false;
-  const canSubmit = !!reason && (!needsCashConfirm || cashConfirmed) && !submitting;
+  const selectedReason   = VOID_REASONS.find(r => r.value === reason);
+  // OMS-cancelled: เหตุผลส่งมาแล้ว ต้องยืนยันคืนเงินสดเสมอ
+  const needsCashConfirm = preFilledReason ? true : (selectedReason?.cashConfirm ?? false);
+  const canSubmit        = preFilledReason
+    ? (cashConfirmed && !submitting)
+    : (!!reason && (!needsCashConfirm || cashConfirmed) && !submitting);
 
   async function handleConfirm() {
-    if (!reason || !canSubmit) return;
+    if (!canSubmit) return;
     setSubmitting(true);
     try {
-      await mockInitiateVoid(transactionId, reason as VoidReason);
-      onSuccess(reason as VoidReason);
+      const reasonToSend = preFilledReason ?? (reason as VoidReason);
+      await mockInitiateVoid(transactionId, reasonToSend as VoidReason);
+      onSuccess(reasonToSend as string);
     } catch {
       setSubmitting(false);
     }
@@ -95,8 +100,14 @@ export default function VoidDialog({ open, transactionId, cashAmount, onSuccess,
         {/* ── Header ── */}
         <div className="void-dialog-header">
           <div id="void-dialog-title" className="void-dialog-title">
-            ยกเลิกการชำระ <span className="void-dialog-txn-id">{transactionId}</span>
+            {preFilledReason ? 'ยืนยันการคืนเงินสด' : 'ยกเลิกการชำระ'}
+            {' '}<span className="void-dialog-txn-id">{transactionId}</span>
           </div>
+          {preFilledReason && (
+            <div className="void-dialog-oms-badge">
+              ยกเลิกโดย OMS — เหตุผลถูกระบุมาจากระบบแล้ว
+            </div>
+          )}
         </div>
 
         {/* ── Amount section ── */}
@@ -109,31 +120,40 @@ export default function VoidDialog({ open, transactionId, cashAmount, onSuccess,
 
         {/* ── Body ── */}
         <div className="void-dialog-body">
-          <div className="void-dialog-reason-label">
-            เหตุผลในการยกเลิก<span className="dialog-required">*</span>
-          </div>
+          {/* OMS mode: show pre-filled reason label */}
+          {preFilledReason ? (
+            <>
+              <div className="void-dialog-reason-label">เหตุผลในการยกเลิก</div>
+              <div className="void-prefilled-reason">{preFilledReason}</div>
+            </>
+          ) : (
+            <>
+              <div className="void-dialog-reason-label">
+                เหตุผลในการยกเลิก<span className="dialog-required">*</span>
+              </div>
+              <div className="void-reason-list">
+                {VOID_REASONS.map(r => (
+                  <label key={r.value} className="void-reason-item">
+                    <input
+                      type="radio"
+                      name="void-reason"
+                      value={r.value}
+                      checked={reason === r.value}
+                      onChange={() => {
+                        setReason(r.value);
+                        setCashConfirmed(false);
+                      }}
+                      disabled={submitting}
+                      className="void-reason-radio"
+                    />
+                    <span className="void-reason-text">{r.label}</span>
+                  </label>
+                ))}
+              </div>
+            </>
+          )}
 
-          <div className="void-reason-list">
-            {VOID_REASONS.map(r => (
-              <label key={r.value} className="void-reason-item">
-                <input
-                  type="radio"
-                  name="void-reason"
-                  value={r.value}
-                  checked={reason === r.value}
-                  onChange={() => {
-                    setReason(r.value);
-                    setCashConfirmed(false);
-                  }}
-                  disabled={submitting}
-                  className="void-reason-radio"
-                />
-                <span className="void-reason-text">{r.label}</span>
-              </label>
-            ))}
-          </div>
-
-          {/* Cash confirmation checkbox — แสดงเฉพาะ reason ที่ต้องคืนเงินจริง */}
+          {/* Cash confirmation checkbox */}
           {needsCashConfirm && (
             <label className="void-cash-confirm-row">
               <input

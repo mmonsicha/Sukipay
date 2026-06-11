@@ -36,13 +36,13 @@ function matchesTab(tx: Transaction, tab: TabKey): boolean {
       return (tx.transaction_status === 'CLOSED' || tx.transaction_status === 'SETTLED') &&
         tx.payment_status === 'COMPLETED';
     case 'CANCELLED':
-      // CANCELLED แต่ REFUND_PENDING → แสดงใน Tab คืนเงินแทน
-      return tx.transaction_status === 'CANCELLED' && tx.payment_status !== 'REFUND_PENDING';
+      // OMS-cancelled (has cancellation_reason) goes here even if REFUND_PENDING
+      return tx.transaction_status === 'CANCELLED' && (tx.payment_status !== 'REFUND_PENDING' || !!tx.cancellation_reason) || tx.transaction_status === 'FAILED' || tx.transaction_status === 'EXPIRED';
     case 'OVERPAY':
       // PAT-2036: overpay รอ Finance ตัดสินใจ
       if ((tx.overpay_delta ?? 0) > 0 && !tx.overpay_acknowledged && tx.payment_status === 'COMPLETED') return true;
-      // PAT-2036: CANCELLED + REFUND_PENDING — order ถูกยกเลิก แต่ลูกค้าโอนเงินมาแล้ว รอ Finance คืนเงิน
-      if (tx.transaction_status === 'CANCELLED' && tx.payment_status === 'REFUND_PENDING') return true;
+      // PAT-2036: CANCELLED + REFUND_PENDING — แต่ถ้า OMS ส่ง cancellation_reason มาให้ไปอยู่ Tab ยกเลิกแทน
+      if (tx.transaction_status === 'CANCELLED' && tx.payment_status === 'REFUND_PENDING' && !tx.cancellation_reason) return true;
       return false;
     default:
       return true;
