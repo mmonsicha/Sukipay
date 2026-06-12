@@ -4342,3 +4342,437 @@ body {
   border-radius: 999px;
   margin-top: 4px;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   Figma Modal Design (fmd-) — CCS-2025 node 6287-121968
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.fmd-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(520px, calc(100vw - 32px));
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 64px);
+  animation: dialogSlideIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.fmd-panel--refund {
+  width: min(580px, calc(100vw - 32px));
+}
+
+/* ── Header ── */
+.fmd-header {
+  padding: 24px;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.fmd-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.fmd-id--orange { color: #ec5e2a; }
+.fmd-id--blue   { color: var(--brand); }
+
+/* ── Content ── */
+.fmd-refund-form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+
+.fmd-content {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.fmd-content--scroll {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Amount summary box ── */
+.fmd-summary-box {
+  background: #f9fafb;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  flex-shrink: 0;
+}
+
+.fmd-summary-box--centered {
+  align-items: center;
+}
+
+.fmd-summary-amount-label {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.fmd-summary-amount-value {
+  font-size: 38px;
+  font-weight: 700;
+  color: var(--brand);
+  text-align: center;
+  line-height: 1.1;
+  margin-top: 4px;
+}
+
+.fmd-summary-divider {
+  width: 100%;
+  height: 1px;
+  background: var(--border);
+  margin: 16px 0;
+}
+
+.fmd-summary-rows {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fmd-summary-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+}
+
+.fmd-summary-row-label {
+  font-size: 15px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.fmd-summary-row-value {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: right;
+}
+
+.fmd-summary-row-value--blue {
+  color: var(--brand);
+}
+
+/* ── Cash confirm panel (step 2 of void) ── */
+.fmd-cash-confirm-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.fmd-cash-confirm-text {
+  font-size: 15px;
+  color: var(--text-primary);
+  line-height: 1.5;
+  flex: 1;
+}
+
+.fmd-cash-confirm-amount {
+  font-weight: 700;
+}
+
+.fmd-cash-confirm-checkbox {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+
+/* ── Footer ── */
+.fmd-footer {
+  display: flex;
+  gap: 16px;
+  flex-shrink: 0;
+  padding-top: 4px;
+}
+
+/* footer inside refund form — sits below scroll area */
+.fmd-footer--form {
+  padding: 16px 24px 24px;
+  border-top: 1px solid var(--border);
+  background: #fff;
+}
+
+.fmd-btn {
+  flex: 1;
+  height: 44px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+}
+
+.fmd-btn--cancel {
+  background: #fff;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+.fmd-btn--cancel:hover:not(:disabled) { background: var(--bg-secondary); }
+.fmd-btn--cancel:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.fmd-btn--orange {
+  background: #ec5e2a;
+  color: #fff;
+}
+.fmd-btn--orange:hover:not(:disabled) { background: #d44e1e; }
+.fmd-btn--orange:disabled { background: #f4c5ad; cursor: not-allowed; }
+
+.fmd-btn--blue {
+  background: var(--brand);
+  color: #fff;
+}
+.fmd-btn--blue:hover:not(:disabled) { background: #1a9af0; }
+.fmd-btn--blue:disabled,
+.fmd-btn--blue.fmd-btn--disabled { background: #8edcff; cursor: not-allowed; }
+
+/* ── Field groups ── */
+.fmd-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fmd-section-label {
+  font-size: 15px;
+  color: var(--text-primary);
+  font-weight: 400;
+}
+
+.fmd-required { color: #e11d48; }
+
+/* ── Reason list ── */
+.fmd-reason-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fmd-reason-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.fmd-reason-radio {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+
+.fmd-reason-text {
+  font-size: 15px;
+  color: var(--text-primary);
+  line-height: 1.4;
+  user-select: none;
+}
+
+/* ── Inputs ── */
+.fmd-input {
+  width: 100%;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 16px;
+  font-size: 15px;
+  color: var(--text-primary);
+  background: #fff;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.fmd-input:focus { border-color: var(--brand); }
+.fmd-input::placeholder { color: var(--text-placeholder); }
+.fmd-input--error { border-color: #e11d48; }
+.fmd-input:disabled { background: var(--bg-secondary); color: var(--text-secondary); cursor: not-allowed; }
+
+.fmd-textarea {
+  height: auto;
+  min-height: 80px;
+  padding: 10px 16px;
+  resize: vertical;
+}
+
+.fmd-select {
+  width: 100%;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 36px 0 16px;
+  font-size: 15px;
+  color: var(--text-primary);
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%236b7280' stroke-width='2' viewBox='0 0 24 24'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E") no-repeat right 12px center;
+  appearance: none;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.fmd-select:focus { border-color: var(--brand); }
+.fmd-select:disabled { background-color: var(--bg-secondary); color: var(--text-secondary); cursor: not-allowed; }
+
+/* ── Quick fill buttons ── */
+.fmd-quick-fill-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.fmd-quick-fill-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s;
+}
+.fmd-quick-fill-btn:hover:not(:disabled) { background: var(--bg-secondary); }
+.fmd-quick-fill-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── File upload area ── */
+.fmd-file-upload {
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 100px;
+}
+
+.fmd-file-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--brand);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--brand);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.fmd-file-upload-btn:hover:not(:disabled) { background: var(--brand-light); }
+.fmd-file-upload-btn--attached {
+  border-color: #16a34a;
+  color: #16a34a;
+  background: #f0fdf4;
+}
+.fmd-file-upload-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.fmd-file-upload-hint {
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+/* ── Note counter ── */
+.fmd-note-counter {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-align: right;
+  margin-top: -4px;
+}
+
+/* ── Error message ── */
+.fmd-field-error {
+  font-size: 12px;
+  color: #e11d48;
+}
+
+/* ── Success screen ── */
+.fmd-success-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 32px;
+  text-align: center;
+}
+
+.fmd-success-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #d1fae5;
+  color: #059669;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fmd-success-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.fmd-success-detail {
+  font-size: 16px;
+  color: var(--text-secondary);
+}
+
+.fmd-success-amount {
+  font-weight: 700;
+  color: var(--brand);
+}
+
+.fmd-success-account {
+  font-size: 14px;
+  color: var(--text-secondary);
+  font-family: 'Roboto Mono', monospace;
+}
+
+.fmd-success-closing {
+  font-size: 13px;
+  color: var(--text-placeholder);
+  margin-top: 4px;
+}

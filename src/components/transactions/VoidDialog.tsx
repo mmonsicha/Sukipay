@@ -11,13 +11,13 @@ type VoidReason =
   | 'wrong_amount'
   | 'other';
 
-const VOID_REASONS: { value: VoidReason; label: string; cashConfirm: boolean }[] = [
-  { value: 'cashier_entry_error',        label: 'บันทึกการชำระผิดพลาด / ไม่มีการรับเงินจริง', cashConfirm: false },
-  { value: 'order_cancelled_by_customer',label: 'ลูกค้าขอยกเลิกออร์เดอร์',                   cashConfirm: true  },
-  { value: 'duplicate_payment',          label: 'ชำระซ้ำโดยไม่ตั้งใจ',                        cashConfirm: true  },
-  { value: 'customer_refused_goods',     label: 'ลูกค้าปฏิเสธรับสินค้า / ไม่ต้องการรับสินค้า', cashConfirm: true  },
-  { value: 'wrong_amount',               label: 'ยอดเงินไม่ถูกต้อง/ข้อมูลผิด',                 cashConfirm: true  },
-  { value: 'other',                      label: 'อื่นๆ',                                        cashConfirm: true  },
+const VOID_REASONS: { value: VoidReason; label: string }[] = [
+  { value: 'cashier_entry_error',         label: 'บันทึกการชำระผิดพลาด/ไม่มีการรับเงินจริง' },
+  { value: 'order_cancelled_by_customer', label: 'ลูกค้าขอยกเลิกออเดอร์' },
+  { value: 'duplicate_payment',           label: 'ชำระซ้ำโดยไม่ตั้งใจ' },
+  { value: 'customer_refused_goods',      label: 'ลูกค้าปฏิเสธรับสินค้า/ไม่ต้องการรับสินค้า' },
+  { value: 'wrong_amount',                label: 'ยอดเงินไม่ถูกต้อง/ข้อมูลผิด' },
+  { value: 'other',                       label: 'อื่นๆ' },
 ];
 
 function fmt(n: number): string {
@@ -33,26 +33,35 @@ export interface VoidDialogProps {
   open: boolean;
   transactionId: string;
   cashAmount: number;
-  preFilledReason?: string;  // label ที่แสดงจาก OMS — ถ้าระบุจะซ่อน reason selector
+  preFilledReason?: string;  // OMS-provided reason — skips step 1
   onSuccess: (reason: string) => void;
   onClose: () => void;
 }
 
-export default function VoidDialog({ open, transactionId, cashAmount, preFilledReason, onSuccess, onClose }: VoidDialogProps) {
-  const [mounted, setMounted]           = useState(false);
-  const [reason, setReason]             = useState<VoidReason | ''>('');
+export default function VoidDialog({
+  open,
+  transactionId,
+  cashAmount,
+  preFilledReason,
+  onSuccess,
+  onClose,
+}: VoidDialogProps) {
+  const [mounted, setMounted]             = useState(false);
+  const [step, setStep]                   = useState<1 | 2>(1);
+  const [reason, setReason]               = useState<VoidReason | ''>('');
   const [cashConfirmed, setCashConfirmed] = useState(false);
-  const [submitting, setSubmitting]     = useState(false);
+  const [submitting, setSubmitting]       = useState(false);
 
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (open) {
+      setStep(preFilledReason ? 2 : 1);
       setReason('');
       setCashConfirmed(false);
       setSubmitting(false);
     }
-  }, [open]);
+  }, [open, preFilledReason]);
 
   const handleClose = useCallback(() => {
     if (submitting) return;
@@ -66,15 +75,19 @@ export default function VoidDialog({ open, transactionId, cashAmount, preFilledR
     return () => document.removeEventListener('keydown', handler);
   }, [open, handleClose]);
 
-  const selectedReason   = VOID_REASONS.find(r => r.value === reason);
-  // OMS-cancelled: เหตุผลส่งมาแล้ว ต้องยืนยันคืนเงินสดเสมอ
-  const needsCashConfirm = preFilledReason ? true : (selectedReason?.cashConfirm ?? false);
-  const canSubmit        = preFilledReason
-    ? (cashConfirmed && !submitting)
-    : (!!reason && (!needsCashConfirm || cashConfirmed) && !submitting);
+  const selectedReasonLabel = preFilledReason
+    ? preFilledReason
+    : VOID_REASONS.find(r => r.value === reason)?.label ?? '';
 
   async function handleConfirm() {
-    if (!canSubmit) return;
+    if (submitting) return;
+    if (step === 1) {
+      if (!reason) return;
+      setStep(2);
+      setCashConfirmed(false);
+      return;
+    }
+    if (!cashConfirmed) return;
     setSubmitting(true);
     try {
       const reasonToSend = preFilledReason ?? (reason as VoidReason);
@@ -87,106 +100,104 @@ export default function VoidDialog({ open, transactionId, cashAmount, preFilledR
 
   if (!mounted || !open) return null;
 
+  const canProceed = step === 1 ? !!reason && !submitting : cashConfirmed && !submitting;
+
   const content = (
     <>
       <div className="dialog-backdrop" onClick={handleClose} />
-
       <div
-        className="dialog-panel void-dialog-panel"
+        className="fmd-panel"
         role="alertdialog"
         aria-modal="true"
         aria-labelledby="void-dialog-title"
       >
         {/* ── Header ── */}
-        <div className="void-dialog-header">
-          <div id="void-dialog-title" className="void-dialog-title">
-            {preFilledReason ? 'ยืนยันการคืนเงินสด' : 'ยกเลิกการชำระ'}
-            {' '}<span className="void-dialog-txn-id">{transactionId}</span>
+        <div className="fmd-header">
+          <div id="void-dialog-title" className="fmd-title">
+            {step === 1
+              ? <>ยกเลิกชำระ <span className="fmd-id--orange">{transactionId}</span></>
+              : <>คืนเงินธุรกรรม <span className="fmd-id--blue">{transactionId}</span></>
+            }
           </div>
-          {preFilledReason && (
-            <div className="void-dialog-oms-badge">
-              ยกเลิกโดย OMS — เหตุผลถูกระบุมาจากระบบแล้ว
-            </div>
-          )}
         </div>
 
-        {/* ── Amount section ── */}
-        <div className="void-dialog-amount-section">
-          <div className="void-dialog-amount-label">จำนวนยอดคืน</div>
-          <div className="void-dialog-amount-value">฿{fmt(cashAmount)}</div>
-        </div>
-
-        <div className="void-dialog-divider" />
-
-        {/* ── Body ── */}
-        <div className="void-dialog-body">
-          {/* OMS mode: show pre-filled reason label */}
-          {preFilledReason ? (
-            <>
-              <div className="void-dialog-reason-label">เหตุผลในการยกเลิก</div>
-              <div className="void-prefilled-reason">{preFilledReason}</div>
-            </>
-          ) : (
-            <>
-              <div className="void-dialog-reason-label">
-                เหตุผลในการยกเลิก<span className="dialog-required">*</span>
+        {/* ── Content ── */}
+        <div className="fmd-content">
+          {step === 1 && (
+            <div className="fmd-field-group">
+              <div className="fmd-section-label">
+                เหตุผลในการขอยกเลิก<span className="fmd-required">*</span>
               </div>
-              <div className="void-reason-list">
+              <div className="fmd-reason-list">
                 {VOID_REASONS.map(r => (
-                  <label key={r.value} className="void-reason-item">
+                  <label key={r.value} className="fmd-reason-item">
                     <input
                       type="radio"
                       name="void-reason"
                       value={r.value}
                       checked={reason === r.value}
-                      onChange={() => {
-                        setReason(r.value);
-                        setCashConfirmed(false);
-                      }}
+                      onChange={() => setReason(r.value)}
                       disabled={submitting}
-                      className="void-reason-radio"
+                      className="fmd-reason-radio"
                     />
-                    <span className="void-reason-text">{r.label}</span>
+                    <span className="fmd-reason-text">{r.label}</span>
                   </label>
                 ))}
               </div>
-            </>
+            </div>
           )}
 
-          {/* Cash confirmation checkbox */}
-          {needsCashConfirm && (
-            <label className="void-cash-confirm-row">
-              <input
-                type="checkbox"
-                className="void-cash-confirm-checkbox"
-                checked={cashConfirmed}
-                onChange={e => setCashConfirmed(e.target.checked)}
-                disabled={submitting}
-              />
-              <span className="void-cash-confirm-text">
-                ยืนยันว่าได้คืนเงินสด{' '}
-                <strong className="void-cash-confirm-amount">฿{fmt(cashAmount)}</strong>{' '}
-                ให้ลูกค้าแล้ว
-              </span>
-            </label>
+          {step === 2 && (
+            <>
+              {/* Summary box */}
+              <div className="fmd-summary-box fmd-summary-box--centered">
+                <div className="fmd-summary-amount-label">จำนวนยอดชำระ</div>
+                <div className="fmd-summary-amount-value">฿{fmt(cashAmount)}</div>
+                {selectedReasonLabel && (
+                  <>
+                    <div className="fmd-summary-divider" />
+                    <div className="fmd-summary-row">
+                      <span className="fmd-summary-row-label">เหตุผลการขอยกเลิก</span>
+                      <span className="fmd-summary-row-value">{selectedReasonLabel}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Cash confirm panel */}
+              <label className="fmd-cash-confirm-panel">
+                <span className="fmd-cash-confirm-text">
+                  ยืนยันว่าได้คืนเงินสด{' '}
+                  <strong className="fmd-cash-confirm-amount">฿{fmt(cashAmount)}</strong>{' '}
+                  ให้ลูกค้า
+                </span>
+                <input
+                  type="checkbox"
+                  className="fmd-cash-confirm-checkbox"
+                  checked={cashConfirmed}
+                  onChange={e => setCashConfirmed(e.target.checked)}
+                  disabled={submitting}
+                />
+              </label>
+            </>
           )}
         </div>
 
         {/* ── Footer ── */}
-        <div className="void-dialog-footer">
+        <div className="fmd-footer fmd-footer--form">
           <button
             type="button"
-            className="void-footer-btn void-footer-btn--cancel"
-            onClick={handleClose}
+            className="fmd-btn fmd-btn--cancel"
+            onClick={step === 2 && !preFilledReason ? () => { setStep(1); setCashConfirmed(false); } : handleClose}
             disabled={submitting}
           >
-            ยกเลิก
+            {step === 2 && !preFilledReason ? 'ย้อนกลับ' : 'ยกเลิก'}
           </button>
           <button
             type="button"
-            className="void-footer-btn void-footer-btn--confirm"
+            className={`fmd-btn ${step === 1 ? 'fmd-btn--orange' : 'fmd-btn--blue'}`}
             onClick={handleConfirm}
-            disabled={!canSubmit}
+            disabled={!canProceed}
           >
             {submitting ? (
               <>
