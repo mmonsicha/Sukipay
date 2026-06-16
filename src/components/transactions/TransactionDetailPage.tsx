@@ -84,6 +84,7 @@ const EVENT_LABELS: Record<EventType, string> = {
   TRANSACTION_OVERPAY_ACKNOWLEDGED:   'บันทึกยอดเกินเป็น Tip',
   VOID_PREPARED:                      'เตรียม Void',
   TRANSACTION_VOIDED:                 'ยกเลิกการชำระ (Void)',
+  PAYMENT_VOIDED:                     'ยกเลิกรายการชำระ (Payment Void)',
   OMS_NOTIFIED:                       'แจ้ง OMS: ปรับสถานะยอดค้างชำระ',
 };
 
@@ -362,10 +363,12 @@ function PaymentCard({
   payment,
   allAuditTrail,
   onOpenSlip,
+  onVoidPayment,
 }: {
   payment: Payment;
   allAuditTrail: AuditTrailEntry[];
   onOpenSlip: (s: Slip) => void;
+  onVoidPayment?: () => void;
 }) {
   const slips = payment.slips ?? [];
   const slip = slips[0];
@@ -425,6 +428,14 @@ function PaymentCard({
           <span className="pc3-channel">ชำระโดย {CHANNEL_LABELS[payment.payment_channel]}</span>
         </div>
         <div className="pc3-header-right">
+          {onVoidPayment && (
+            <button type="button" className="pc3-void-btn" onClick={onVoidPayment}>
+              <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+              ยกเลิก
+            </button>
+          )}
           <PaymentStatusBadge status={payment.payment_status} />
         </div>
       </div>
@@ -808,6 +819,9 @@ export default function TransactionDetailPage() {
   const [voidPreFilledReason, setVoidPreFilledReason] = useState<string | undefined>(undefined);
   const [voidOrderNo, setVoidOrderNo]                 = useState<string | undefined>(undefined);
   const [showVoidBTDialog, setShowVoidBTDialog]       = useState(false);
+  const [payVoidTarget, setPayVoidTarget]             = useState<Payment | undefined>(undefined);
+  const [showPayVoidCashDialog, setShowPayVoidCashDialog] = useState(false);
+  const [showPayVoidBTDialog, setShowPayVoidBTDialog]     = useState(false);
   const [bodyTab, setBodyTab]                   = useState<'payments' | 'history'>('payments');
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
@@ -940,6 +954,95 @@ export default function TransactionDetailPage() {
       ]);
       showToast('ยกเลิกการชำระสำเร็จ — Finance Manager จะดำเนินการโอนคืน');
     }, 1200);
+  }
+
+  // ── Payment-level void handlers ───────────────────────────────────────────
+
+  function handlePaymentVoidClick(payment: Payment) {
+    setPayVoidTarget(payment);
+    if (payment.payment_channel === 'CASH') {
+      setShowPayVoidCashDialog(true);
+    } else {
+      setShowPayVoidBTDialog(true);
+    }
+  }
+
+  function handlePayCashVoidSuccess(_reason: string) {
+    setShowPayVoidCashDialog(false);
+    const target = payVoidTarget;
+    setPayVoidTarget(undefined);
+    if (!target) return;
+
+    setLocalPayments(prev =>
+      prev.map(p => p.payment_id === target.payment_id
+        ? { ...p, payment_status: 'VOIDED' as const }
+        : p),
+    );
+
+    const auditNow = new Date().toISOString();
+    setLocalAuditTrail(prev => [{
+      id: `audit-payvoid-${Date.now()}`,
+      transaction_id: tx!.transaction_id,
+      payment_id: target.payment_id,
+      event_type: 'PAYMENT_VOIDED' as const,
+      operator_type: 'user' as const,
+      created_at: auditNow,
+    }, ...prev]);
+
+    // Void transaction too if no other COMPLETED payments remain
+    const otherCompleted = localPayments.filter(
+      p => p.payment_id !== target.payment_id && p.payment_status === 'COMPLETED',
+    );
+    if (otherCompleted.length === 0 && (localTxStatus === 'PENDING' || localTxStatus === 'CLOSED')) {
+      const fromState = localTxStatus;
+      setLocalTxStatus('VOID_PREPARED');
+      setLocalStateHistory(prev => [
+        ...prev,
+        { from_state: fromState, to_state: 'VOID_PREPARED', at: auditNow },
+      ]);
+      setTimeout(() => {
+        const doneAt = new Date().toISOString();
+        setLocalTxStatus('VOID');
+        setLocalStateHistory(prev => [
+          ...prev,
+          { from_state: 'VOID_PREPARED', to_state: 'VOID', at: doneAt },
+        ]);
+        setLocalAuditTrail(prev => [{
+          id: `audit-txvoid-${Date.now()}`,
+          transaction_id: tx!.transaction_id,
+          event_type: 'TRANSACTION_VOIDED' as const,
+          operator_type: 'system' as const,
+          created_at: doneAt,
+        }, ...prev]);
+        showToast('ยกเลิกการชำระสำเร็จ — สามารถบันทึกรับเงินใหม่ได้');
+      }, 1200);
+    } else {
+      showToast('ยกเลิกรายการชำระสำเร็จ');
+    }
+  }
+
+  function handlePayBTVoidSuccess(_reason: string) {
+    setShowPayVoidBTDialog(false);
+    const target = payVoidTarget;
+    setPayVoidTarget(undefined);
+    if (!target) return;
+
+    setLocalPayments(prev =>
+      prev.map(p => p.payment_id === target.payment_id
+        ? { ...p, payment_status: 'REFUND_PENDING' as const }
+        : p),
+    );
+
+    setLocalAuditTrail(prev => [{
+      id: `audit-paybtv-${Date.now()}`,
+      transaction_id: tx!.transaction_id,
+      payment_id: target.payment_id,
+      event_type: 'PAYMENT_REFUND_REQUESTED' as const,
+      operator_type: 'user' as const,
+      created_at: new Date().toISOString(),
+    }, ...prev]);
+
+    showToast('ยกเลิกการชำระ — Finance Manager จะดำเนินการโอนคืน');
   }
 
   // Eligible payments for refund — COMPLETED payments qualify for standard flow
@@ -1271,6 +1374,13 @@ export default function TransactionDetailPage() {
                       payment={payment}
                       allAuditTrail={localAuditTrail}
                       onOpenSlip={setActiveSlip}
+                      onVoidPayment={
+                        payment.payment_status === 'COMPLETED' &&
+                        (localTxStatus === 'PENDING' || localTxStatus === 'CLOSED') &&
+                        !tx.cancellation_reason
+                          ? () => handlePaymentVoidClick(payment)
+                          : undefined
+                      }
                     />
                   ))}
                 </div>
@@ -1364,6 +1474,24 @@ export default function TransactionDetailPage() {
           .reduce((s, p) => s + p.amount, 0)}
         onSuccess={handleVoidBTSuccess}
         onClose={() => setShowVoidBTDialog(false)}
+      />
+
+      {/* ── Payment-level Cash Void ── */}
+      <VoidDialog
+        open={showPayVoidCashDialog}
+        transactionId={payVoidTarget?.payment_id ?? ''}
+        cashAmount={payVoidTarget?.amount ?? 0}
+        onSuccess={handlePayCashVoidSuccess}
+        onClose={() => { setShowPayVoidCashDialog(false); setPayVoidTarget(undefined); }}
+      />
+
+      {/* ── Payment-level BankTransfer Void ── */}
+      <VoidBTDialog
+        open={showPayVoidBTDialog}
+        transactionId={payVoidTarget?.payment_id ?? ''}
+        btAmount={payVoidTarget?.amount ?? 0}
+        onSuccess={handlePayBTVoidSuccess}
+        onClose={() => { setShowPayVoidBTDialog(false); setPayVoidTarget(undefined); }}
       />
 
       {/* ── Toast ── */}

@@ -1159,6 +1159,24 @@ body {
   gap: 10px;
 }
 
+/* Payment-level void button */
+.pc3-void-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid #ec5e2a;
+  color: #ec5e2a;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.pc3-void-btn:hover { background: #fff5f0; }
+
 /* Body: two-column (slip + info) or single column */
 .pc3-body {
   padding: 20px;

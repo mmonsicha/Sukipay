@@ -30,6 +30,7 @@ export type EventType =
   | 'TRANSACTION_OVERPAY_ACKNOWLEDGED'
   | 'VOID_PREPARED'
   | 'TRANSACTION_VOIDED'
+  | 'PAYMENT_VOIDED'
   | 'OMS_NOTIFIED';
 
 export type RejectReason =
