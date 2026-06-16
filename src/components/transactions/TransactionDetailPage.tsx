@@ -10,6 +10,7 @@ import OverpayBanner from './OverpayBanner';
 import RefundDialog, { type EligiblePayment, type RefundSubmitResult } from './RefundDialog';
 import TipConfirmDialog from './TipConfirmDialog';
 import VoidDialog from './VoidDialog';
+import VoidBTDialog from './VoidBTDialog';
 import { INITIAL_TRANSACTIONS } from '@/lib/mockData';
 import type {
   Transaction, Payment, Slip,
@@ -806,34 +807,34 @@ export default function TransactionDetailPage() {
   const [voidIsOmsCancelled, setVoidIsOmsCancelled]   = useState(false);
   const [voidPreFilledReason, setVoidPreFilledReason] = useState<string | undefined>(undefined);
   const [voidOrderNo, setVoidOrderNo]                 = useState<string | undefined>(undefined);
+  const [showVoidBTDialog, setShowVoidBTDialog]       = useState(false);
   const [bodyTab, setBodyTab]                   = useState<'payments' | 'history'>('payments');
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') =>
     setToast({ msg, type });
 
-  // ยกเลิกออเดอร์ — PAT-2426 adds PENDING+all-CASH; existing: CLOSED/SETTLED with any COMPLETED
+  // ยกเลิกออเดอร์ — PENDING/CLOSED/SETTLED with at least one COMPLETED payment
   const canCancelOrder =
-    (localTxStatus === 'PENDING'
-      && localPayments.length > 0
-      && localPayments.every(p => p.payment_channel === 'CASH' && p.payment_status === 'COMPLETED')
-    ) ||
-    ((localTxStatus === 'CLOSED' || localTxStatus === 'SETTLED') &&
-      localPayments.some(p => p.payment_status === 'COMPLETED'));
+    (localTxStatus === 'PENDING' || localTxStatus === 'CLOSED' || localTxStatus === 'SETTLED') &&
+    localPayments.some(p => p.payment_status === 'COMPLETED');
 
-  // PAT-2426: PENDING/CLOSED + all CASH → VoidDialog with fixed reason + order warning
-  // Cases 2+3: any BANK_TRANSFER, or SETTLED+CASH → RefundDialog (โอนผ่านธนาคาร)
+  // PENDING/CLOSED + all CASH → CashVoid (reason + cash confirm)
+  // PENDING/CLOSED + any BankTransfer → BankTransferVoid (reason + Finance Task)
+  // SETTLED → RefundDialog (post-settlement, bank details required)
   function handleCancelOrder() {
-    const isPendingOrClosedAllCash =
-      (localTxStatus === 'PENDING' || localTxStatus === 'CLOSED') &&
-      localPayments.length > 0 &&
-      localPayments.every(p => p.payment_channel === 'CASH' && p.payment_status === 'COMPLETED');
+    const isPendingOrClosed = localTxStatus === 'PENDING' || localTxStatus === 'CLOSED';
+    const completedPayments = localPayments.filter(p => p.payment_status === 'COMPLETED');
+    const allCash = completedPayments.length > 0 && completedPayments.every(p => p.payment_channel === 'CASH');
 
-    if (isPendingOrClosedAllCash) {
-      setVoidPreFilledReason('cashier_entry_error');
-      setVoidOrderNo(tx?.order_no);
+    if (isPendingOrClosed && allCash) {
+      setVoidPreFilledReason(undefined);
+      setVoidOrderNo(undefined);
       setShowVoidDialog(true);
+    } else if (isPendingOrClosed) {
+      setShowVoidBTDialog(true);
     } else {
+      // SETTLED
       setRefundPreselectedPaymentId(undefined);
       setRefundCancelMode(true);
       setRefundPreFilledReason(undefined);
@@ -895,6 +896,49 @@ export default function TransactionDetailPage() {
       setVoidOrderNo(undefined);
       setVoidPreFilledReason(undefined);
       showToast('ยกเลิกการชำระสำเร็จ — สามารถบันทึกรับเงินใหม่ได้');
+    }, 1200);
+  }
+
+  // BankTransfer Void: PENDING/CLOSED → VOID_PREPARED → VOID, BT payments → REFUND_PENDING
+  function handleVoidBTSuccess(_reason: string) {
+    setShowVoidBTDialog(false);
+
+    // Flip all completed BT payments to REFUND_PENDING immediately
+    setLocalPayments(prev =>
+      prev.map(p =>
+        p.payment_channel === 'BANK_TRANSFER' && p.payment_status === 'COMPLETED'
+          ? { ...p, payment_status: 'REFUND_PENDING' as const }
+          : p,
+      ),
+    );
+
+    const fromState = localTxStatus;
+    setLocalTxStatus('VOID_PREPARED');
+    const now = new Date().toISOString();
+    setLocalStateHistory(prev => [...prev, { from_state: fromState, to_state: 'VOID_PREPARED', at: now }]);
+
+    setTimeout(() => {
+      const doneAt = new Date().toISOString();
+      setLocalTxStatus('VOID');
+      setLocalStateHistory(prev => [...prev, { from_state: 'VOID_PREPARED', to_state: 'VOID', at: doneAt }]);
+      setLocalAuditTrail(prev => [
+        {
+          id: `audit-voidbt-${Date.now()}`,
+          transaction_id: tx!.transaction_id,
+          event_type: 'TRANSACTION_VOIDED' as const,
+          operator_type: 'system' as const,
+          created_at: doneAt,
+        },
+        {
+          id: `audit-voidbt-oms-${Date.now()}`,
+          transaction_id: tx!.transaction_id,
+          event_type: 'OMS_NOTIFIED' as const,
+          operator_type: 'system' as const,
+          created_at: doneAt,
+        },
+        ...prev,
+      ]);
+      showToast('ยกเลิกการชำระสำเร็จ — Finance Manager จะดำเนินการโอนคืน');
     }, 1200);
   }
 
@@ -1310,6 +1354,16 @@ export default function TransactionDetailPage() {
           setVoidPreFilledReason(undefined);
           setVoidOrderNo(undefined);
         }}
+      />
+
+      <VoidBTDialog
+        open={showVoidBTDialog}
+        transactionId={tx.transaction_no}
+        btAmount={localPayments
+          .filter(p => p.payment_channel === 'BANK_TRANSFER' && p.payment_status === 'COMPLETED')
+          .reduce((s, p) => s + p.amount, 0)}
+        onSuccess={handleVoidBTSuccess}
+        onClose={() => setShowVoidBTDialog(false)}
       />
 
       {/* ── Toast ── */}

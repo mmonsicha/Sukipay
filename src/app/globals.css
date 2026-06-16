@@ -4511,6 +4511,34 @@ body {
   cursor: pointer;
 }
 
+/* ── Info box (BankTransfer Finance Task note) ── */
+.fmd-info-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #1e40af;
+  line-height: 1.5;
+}
+.fmd-info-box-icon { flex-shrink: 0; margin-top: 1px; color: #3b82f6; }
+.fmd-info-box-text { flex: 1; }
+
+/* ── Payment method badge inside summary box ── */
+.fmd-badge-bt {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
 /* ── PAT-2426: order-stays-active warning ── */
 .fmd-order-warning {
   display: flex;
