@@ -1511,7 +1511,84 @@ function createOmsCancelledAfterSettledTransaction(): Transaction {
   };
 }
 
+// ── PAT-2426: PENDING + CASH COMPLETED — ยกเลิกการบันทึกชำระ (ไม่มีการรับเงินจริง) ──
+// Scenario: แคชเชียร์บันทึกรับเงินสดผิดพลาด transaction ยัง PENDING (ยังไม่ CLOSE)
+// ปุ่ม "ยกเลิกออเดอร์" ควรแสดง VoidDialog แบบ PAT-2426 + order warning
+function createPendingCashVoidDemoTransaction(): Transaction {
+  const now = new Date('2026-06-16T10:05:00+07:00');
+  const txId = 'tx-pending-cash-void-demo';
+  const amount = 3_200;
+
+  const payment: Payment = {
+    payment_id: 'pay-pendcash-1',
+    seq: 1,
+    payment_channel: 'CASH',
+    amount,
+    payment_status: 'COMPLETED',
+    slip_count: 0,
+  };
+
+  const auditTrail: AuditTrailEntry[] = ([
+    {
+      id: 'audit-pc-1',
+      transaction_id: txId,
+      event_type: 'TRANSACTION_CREATED' as const,
+      operator_type: 'system' as const,
+      created_at: new Date(now.getTime() - 10 * 60_000).toISOString(),
+    },
+    {
+      id: 'audit-pc-2',
+      transaction_id: txId,
+      payment_id: payment.payment_id,
+      event_type: 'PAYMENT_ADDED' as const,
+      operator_type: 'user' as const,
+      operator_name: 'ณัฐา ส่ง',
+      operator_role: 'Cashier',
+      created_at: new Date(now.getTime() - 8 * 60_000).toISOString(),
+    },
+    {
+      id: 'audit-pc-3',
+      transaction_id: txId,
+      payment_id: payment.payment_id,
+      event_type: 'PAYMENT_COMPLETED' as const,
+      operator_type: 'system' as const,
+      created_at: new Date(now.getTime() - 8 * 60_000).toISOString(),
+    },
+  ] satisfies AuditTrailEntry[]).sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
+
+  const stateHistory: StateHistoryEntry[] = [
+    { from_state: null, to_state: 'PENDING', at: new Date(now.getTime() - 10 * 60_000).toISOString() },
+  ];
+
+  return {
+    transaction_id: txId,
+    transaction_no: 'TXN-20260616-PNDCASH',
+    order_no: 'SO7788996655',
+    order_serial: 'SC-202606-00116',
+    order_total: amount,
+    customer: { name: 'ชญาน์ ทองดี', contact: '095-678-9012', company_name: 'ร้านชญาน์ ของฝาก' },
+    store_name: 'สาขา ลาดพร้าว',
+    store_id: 'store-005',
+    payment_channel: 'CASH',
+    transfer_time: undefined,
+    amount,
+    currency: 'THB',
+    slip_count: 0,
+    payment_status: 'COMPLETED',
+    transaction_status: 'PENDING',
+    created_at: new Date(now.getTime() - 10 * 60_000).toISOString(),
+    updated_at: new Date(now.getTime() - 8 * 60_000).toISOString(),
+    is_expandable: true,
+    payments: [payment],
+    state_history: stateHistory,
+    audit_trail: auditTrail,
+  };
+}
+
 export const INITIAL_TRANSACTIONS: Transaction[] = [
+  createPendingCashVoidDemoTransaction(),
   createOverpayShowcaseTransaction(),
   createFreshOverpayDemoTransaction(),
   createCancelledRefundPendingTransaction(),

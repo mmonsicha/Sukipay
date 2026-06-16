@@ -4511,6 +4511,22 @@ body {
   cursor: pointer;
 }
 
+/* ── PAT-2426: order-stays-active warning ── */
+.fmd-order-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #78350f;
+  line-height: 1.5;
+}
+.fmd-order-warning-icon { flex-shrink: 0; font-size: 16px; line-height: 1.4; }
+.fmd-order-warning-text { flex: 1; }
+
 /* ── Footer ── */
 .fmd-footer {
   display: flex;

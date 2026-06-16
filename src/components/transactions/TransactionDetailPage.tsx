@@ -83,6 +83,7 @@ const EVENT_LABELS: Record<EventType, string> = {
   TRANSACTION_OVERPAY_ACKNOWLEDGED:   'บันทึกยอดเกินเป็น Tip',
   VOID_PREPARED:                      'เตรียม Void',
   TRANSACTION_VOIDED:                 'ยกเลิกการชำระ (Void)',
+  OMS_NOTIFIED:                       'แจ้ง OMS: ปรับสถานะยอดค้างชำระ',
 };
 
 const REJECT_REASON_LABELS: Record<RejectReason, string> = {
@@ -801,29 +802,36 @@ export default function TransactionDetailPage() {
   const [refundPreselectedPaymentId, setRefundPreselectedPaymentId] = useState<string | undefined>(undefined);
   const [refundPreFilledReason, setRefundPreFilledReason] = useState<string | undefined>(undefined);
   const [showTipDialog, setShowTipDialog]           = useState(false);
-  const [showVoidDialog, setShowVoidDialog]         = useState(false);
-  const [voidIsOmsCancelled, setVoidIsOmsCancelled] = useState(false);
+  const [showVoidDialog, setShowVoidDialog]           = useState(false);
+  const [voidIsOmsCancelled, setVoidIsOmsCancelled]   = useState(false);
   const [voidPreFilledReason, setVoidPreFilledReason] = useState<string | undefined>(undefined);
+  const [voidOrderNo, setVoidOrderNo]                 = useState<string | undefined>(undefined);
   const [bodyTab, setBodyTab]                   = useState<'payments' | 'history'>('payments');
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') =>
     setToast({ msg, type });
 
-  // ยกเลิกออเดอร์ — available on all CLOSED/SETTLED with at least one COMPLETED payment
+  // ยกเลิกออเดอร์ — PAT-2426 adds PENDING+all-CASH; existing: CLOSED/SETTLED with any COMPLETED
   const canCancelOrder =
-    (localTxStatus === 'CLOSED' || localTxStatus === 'SETTLED') &&
-    localPayments.some(p => p.payment_status === 'COMPLETED');
+    (localTxStatus === 'PENDING'
+      && localPayments.length > 0
+      && localPayments.every(p => p.payment_channel === 'CASH' && p.payment_status === 'COMPLETED')
+    ) ||
+    ((localTxStatus === 'CLOSED' || localTxStatus === 'SETTLED') &&
+      localPayments.some(p => p.payment_status === 'COMPLETED'));
 
-  // Case 1: CLOSED + all CASH → VoidDialog (คืนเงินสดหน้าร้าน)
+  // PAT-2426: PENDING/CLOSED + all CASH → VoidDialog with fixed reason + order warning
   // Cases 2+3: any BANK_TRANSFER, or SETTLED+CASH → RefundDialog (โอนผ่านธนาคาร)
   function handleCancelOrder() {
-    const isClosedAllCash =
-      localTxStatus === 'CLOSED' &&
+    const isPendingOrClosedAllCash =
+      (localTxStatus === 'PENDING' || localTxStatus === 'CLOSED') &&
       localPayments.length > 0 &&
       localPayments.every(p => p.payment_channel === 'CASH' && p.payment_status === 'COMPLETED');
 
-    if (isClosedAllCash) {
+    if (isPendingOrClosedAllCash) {
+      setVoidPreFilledReason('cashier_entry_error');
+      setVoidOrderNo(tx?.order_no);
       setShowVoidDialog(true);
     } else {
       setRefundPreselectedPaymentId(undefined);
@@ -856,26 +864,37 @@ export default function TransactionDetailPage() {
       return;
     }
 
-    // SukiPay-initiated void: CLOSED → VOID_PREPARED → VOID (simulate async)
+    // SukiPay-initiated void: PENDING/CLOSED → VOID_PREPARED → VOID (simulate async)
+    const fromState = localTxStatus;
     setLocalTxStatus('VOID_PREPARED');
     const now = new Date().toISOString();
-    setLocalStateHistory(prev => [...prev, { from_state: 'CLOSED', to_state: 'VOID_PREPARED', at: now }]);
+    setLocalStateHistory(prev => [...prev, { from_state: fromState, to_state: 'VOID_PREPARED', at: now }]);
 
     setTimeout(() => {
+      const doneAt = new Date().toISOString();
       setLocalTxStatus('VOID');
       setLocalPayments(prev => prev.map(p => ({ ...p, payment_status: 'VOIDED' as const })));
-      setLocalStateHistory(prev => [...prev, { from_state: 'VOID_PREPARED', to_state: 'VOID', at: new Date().toISOString() }]);
+      setLocalStateHistory(prev => [...prev, { from_state: 'VOID_PREPARED', to_state: 'VOID', at: doneAt }]);
       setLocalAuditTrail(prev => [
         {
           id: `audit-void-${Date.now()}`,
           transaction_id: tx!.transaction_id,
           event_type: 'TRANSACTION_VOIDED' as const,
           operator_type: 'system' as const,
-          created_at: new Date().toISOString(),
+          created_at: doneAt,
+        },
+        {
+          id: `audit-void-oms-${Date.now()}`,
+          transaction_id: tx!.transaction_id,
+          event_type: 'OMS_NOTIFIED' as const,
+          operator_type: 'system' as const,
+          created_at: doneAt,
         },
         ...prev,
       ]);
-      showToast('ยกเลิกการชำระสำเร็จ');
+      setVoidOrderNo(undefined);
+      setVoidPreFilledReason(undefined);
+      showToast('ยกเลิกการชำระสำเร็จ — สามารถบันทึกรับเงินใหม่ได้');
     }, 1200);
   }
 
@@ -1283,11 +1302,13 @@ export default function TransactionDetailPage() {
         transactionId={tx.transaction_no}
         cashAmount={localPayments.filter(p => p.payment_channel === 'CASH').reduce((s, p) => s + p.amount, 0)}
         preFilledReason={voidPreFilledReason}
+        orderNo={voidOrderNo}
         onSuccess={handleVoidSuccess}
         onClose={() => {
           setShowVoidDialog(false);
           setVoidIsOmsCancelled(false);
           setVoidPreFilledReason(undefined);
+          setVoidOrderNo(undefined);
         }}
       />
 
