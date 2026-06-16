@@ -1587,7 +1587,274 @@ function createPendingCashVoidDemoTransaction(): Transaction {
   };
 }
 
+function createOmsCancelledPendingCashTransaction(): Transaction {
+  const now = new Date('2026-06-16T14:00:00+07:00');
+  const txId = 'tx-oms-pend-cash-demo';
+  const amount = 4_500;
+
+  const payment: Payment = {
+    payment_id: 'pay-omspndcsh-1',
+    seq: 1,
+    payment_channel: 'CASH',
+    amount,
+    payment_status: 'REFUND_PENDING',
+    slip_count: 0,
+  };
+
+  const auditTrail: AuditTrailEntry[] = ([
+    { id: 'audit-omspndcsh-1', transaction_id: txId, event_type: 'TRANSACTION_CREATED' as const, operator_type: 'system' as const, created_at: new Date(now.getTime() - 60 * 60_000).toISOString() },
+    { id: 'audit-omspndcsh-2', transaction_id: txId, payment_id: payment.payment_id, event_type: 'PAYMENT_ADDED' as const, operator_type: 'user' as const, operator_name: 'ณัฐา ส่ง', operator_role: 'Cashier', created_at: new Date(now.getTime() - 55 * 60_000).toISOString() },
+    { id: 'audit-omspndcsh-3', transaction_id: txId, payment_id: payment.payment_id, event_type: 'PAYMENT_COMPLETED' as const, operator_type: 'system' as const, created_at: new Date(now.getTime() - 55 * 60_000).toISOString() },
+    { id: 'audit-omspndcsh-4', transaction_id: txId, event_type: 'TRANSACTION_CANCELLED' as const, operator_type: 'system' as const, created_at: new Date(now.getTime() - 15 * 60_000).toISOString() },
+    { id: 'audit-omspndcsh-5', transaction_id: txId, payment_id: payment.payment_id, event_type: 'PAYMENT_REFUND_REQUESTED' as const, operator_type: 'system' as const, metadata: { refund_amount: amount }, created_at: new Date(now.getTime() - 14 * 60_000).toISOString() },
+  ] satisfies AuditTrailEntry[]).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  const stateHistory: StateHistoryEntry[] = [
+    { from_state: null,      to_state: 'PENDING',    at: new Date(now.getTime() - 60 * 60_000).toISOString() },
+    { from_state: 'PENDING', to_state: 'CANCELLED',  at: new Date(now.getTime() - 15 * 60_000).toISOString() },
+  ];
+
+  return {
+    transaction_id: txId,
+    transaction_no: 'TXN-20260616-OMS01',
+    order_no: 'SO2233445566',
+    order_serial: 'SC-202606-00111',
+    order_total: amount,
+    customer: { name: 'ศิริพร นาม', contact: '089-111-2233', company_name: 'ร้านศิริพร เบเกอรี่' },
+    store_name: 'สาขา ลาดพร้าว',
+    store_id: 'store-005',
+    payment_channel: 'CASH',
+    amount,
+    currency: 'THB',
+    slip_count: 0,
+    payment_status: 'REFUND_PENDING',
+    transaction_status: 'CANCELLED',
+    cancellation_reason: 'out_of_stock',
+    cancellation_note: 'OMS ยืนยัน: สินค้าหมดสต็อก ไม่สามารถจัดส่งได้',
+    created_at: new Date(now.getTime() - 60 * 60_000).toISOString(),
+    updated_at: new Date(now.getTime() - 14 * 60_000).toISOString(),
+    is_expandable: true,
+    payments: [payment],
+    state_history: stateHistory,
+    audit_trail: auditTrail,
+  };
+}
+
+function createOmsCancelledSettledCashTransaction(): Transaction {
+  const now = new Date('2026-06-14T16:00:00+07:00');
+  const txId = 'tx-oms-stl-cash-demo';
+  const amount = 6_800;
+
+  const payment: Payment = {
+    payment_id: 'pay-omsstlcsh-1',
+    seq: 1,
+    payment_channel: 'CASH',
+    amount,
+    payment_status: 'REFUND_PENDING',
+    slip_count: 0,
+  };
+
+  const auditTrail: AuditTrailEntry[] = ([
+    { id: 'audit-omsstlcsh-1', transaction_id: txId, event_type: 'TRANSACTION_CREATED' as const, operator_type: 'system' as const, created_at: new Date(now.getTime() - 240 * 60_000).toISOString() },
+    { id: 'audit-omsstlcsh-2', transaction_id: txId, payment_id: payment.payment_id, event_type: 'PAYMENT_ADDED' as const, operator_type: 'user' as const, operator_name: 'สมชาย ขาย', operator_role: 'Cashier', created_at: new Date(now.getTime() - 235 * 60_000).toISOString() },
+    { id: 'audit-omsstlcsh-3', transaction_id: txId, payment_id: payment.payment_id, event_type: 'PAYMENT_COMPLETED' as const, operator_type: 'system' as const, created_at: new Date(now.getTime() - 235 * 60_000).toISOString() },
+    { id: 'audit-omsstlcsh-4', transaction_id: txId, event_type: 'TRANSACTION_CLOSED' as const, operator_type: 'system' as const, created_at: new Date(now.getTime() - 235 * 60_000).toISOString() },
+    { id: 'audit-omsstlcsh-5', transaction_id: txId, event_type: 'TRANSACTION_SETTLED' as const, operator_type: 'system' as const, created_at: new Date(now.getTime() - 180 * 60_000).toISOString() },
+    { id: 'audit-omsstlcsh-6', transaction_id: txId, event_type: 'TRANSACTION_CANCELLED' as const, operator_type: 'system' as const, created_at: new Date(now.getTime() - 30 * 60_000).toISOString() },
+    { id: 'audit-omsstlcsh-7', transaction_id: txId, payment_id: payment.payment_id, event_type: 'PAYMENT_REFUND_REQUESTED' as const, operator_type: 'system' as const, metadata: { refund_amount: amount }, created_at: new Date(now.getTime() - 29 * 60_000).toISOString() },
+  ] satisfies AuditTrailEntry[]).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  const stateHistory: StateHistoryEntry[] = [
+    { from_state: null,       to_state: 'PENDING',    at: new Date(now.getTime() - 240 * 60_000).toISOString() },
+    { from_state: 'PENDING',  to_state: 'CLOSED',     at: new Date(now.getTime() - 235 * 60_000).toISOString() },
+    { from_state: 'CLOSED',   to_state: 'SETTLED',    at: new Date(now.getTime() - 180 * 60_000).toISOString() },
+    { from_state: 'SETTLED',  to_state: 'CANCELLED',  at: new Date(now.getTime() -  30 * 60_000).toISOString() },
+  ];
+
+  return {
+    transaction_id: txId,
+    transaction_no: 'TXN-20260614-OMS05',
+    order_no: 'SO3344556677',
+    order_serial: 'SC-202606-00112',
+    order_total: amount,
+    customer: { name: 'บุญมา แสงสว่าง', contact: '092-444-5566', company_name: 'บริษัท บุญมา ค้าส่ง จำกัด' },
+    store_name: 'MRT ห้วยขวาง',
+    store_id: 'store-004',
+    payment_channel: 'CASH',
+    amount,
+    currency: 'THB',
+    slip_count: 0,
+    payment_status: 'REFUND_PENDING',
+    transaction_status: 'CANCELLED',
+    cancellation_reason: 'order_cancel',
+    cancellation_note: 'ลูกค้าขอยกเลิก order หลังรับสินค้าไปแล้ว OMS อนุมัติการยกเลิก',
+    created_at: new Date(now.getTime() - 240 * 60_000).toISOString(),
+    updated_at: new Date(now.getTime() -  29 * 60_000).toISOString(),
+    is_expandable: true,
+    payments: [payment],
+    state_history: stateHistory,
+    audit_trail: auditTrail,
+  };
+}
+
+function createPendingBTVoidDemoTransaction(): Transaction {
+  const now = new Date('2026-06-15T10:30:00+07:00');
+  const txId = 'tx-sp-pend-bt-demo';
+  const amount = 5_500;
+
+  const slip: Slip = {
+    slip_id: 'slip-sppndbt-1',
+    image_url: SLIP_IMAGES[0],
+    uploaded_at: new Date(now.getTime() - 15 * 60_000).toISOString(),
+    amount,
+    transfer_time: new Date(now.getTime() - 20 * 60_000).toISOString(),
+    bank_name: 'ธนาคารกสิกรไทย',
+    account_number: '0987654321',
+    account_holder: 'บริษัท วิไล ค้าส่ง จำกัด',
+  };
+
+  const payment: Payment = {
+    payment_id: 'pay-sppndbt-1',
+    seq: 1,
+    payment_channel: 'BANK_TRANSFER',
+    bank_name: 'ธนาคารกสิกรไทย',
+    transfer_time: slip.transfer_time,
+    amount,
+    payment_status: 'COMPLETED',
+    slip_count: 1,
+    slips: [slip],
+    slip_id: slip.slip_id,
+    account_holder: slip.account_holder,
+  };
+
+  const auditTrail: AuditTrailEntry[] = ([
+    { id: 'audit-sppndbt-1', transaction_id: txId, event_type: 'TRANSACTION_CREATED' as const, operator_type: 'system' as const, created_at: new Date(now.getTime() - 25 * 60_000).toISOString() },
+    { id: 'audit-sppndbt-2', transaction_id: txId, payment_id: payment.payment_id, event_type: 'PAYMENT_ADDED' as const, operator_type: 'user' as const, operator_name: 'สมชาย ขาย', operator_role: 'Seller', created_at: new Date(now.getTime() - 20 * 60_000).toISOString() },
+    { id: 'audit-sppndbt-3', transaction_id: txId, payment_id: payment.payment_id, event_type: 'PAYMENT_COMPLETED' as const, operator_type: 'user' as const, operator_name: 'วิไล จันทร์', operator_role: 'Finance Manager', created_at: new Date(now.getTime() - 10 * 60_000).toISOString() },
+  ] satisfies AuditTrailEntry[]).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  const stateHistory: StateHistoryEntry[] = [
+    { from_state: null, to_state: 'PENDING', at: new Date(now.getTime() - 25 * 60_000).toISOString() },
+  ];
+
+  return {
+    transaction_id: txId,
+    transaction_no: 'TXN-20260615-SPTX03',
+    order_no: 'SO4455667788',
+    order_serial: 'SC-202606-00113',
+    order_total: amount,
+    customer: { name: 'วิไล จันทร์', contact: '082-345-6789', company_name: 'บริษัท วิไล ค้าส่ง จำกัด' },
+    store_name: 'บิเกิ้ลชอป',
+    store_id: 'store-002',
+    payment_channel: 'BANK_TRANSFER',
+    bank_name: 'ธนาคารกสิกรไทย',
+    transfer_time: slip.transfer_time,
+    amount,
+    currency: 'THB',
+    slip_count: 1,
+    slips: [slip],
+    payment_status: 'COMPLETED',
+    transaction_status: 'PENDING',
+    created_at: new Date(now.getTime() - 25 * 60_000).toISOString(),
+    updated_at: new Date(now.getTime() - 10 * 60_000).toISOString(),
+    is_expandable: true,
+    payments: [payment],
+    state_history: stateHistory,
+    audit_trail: auditTrail,
+  };
+}
+
+function createMultiPaymentDemoTransaction(): Transaction {
+  const now = new Date('2026-06-17T09:00:00+07:00');
+  const txId = 'tx-sp-pay-multi-demo';
+  const cashAmount = 2_000;
+  const btAmount = 4_500;
+  const totalAmount = cashAmount + btAmount;
+
+  const slip: Slip = {
+    slip_id: 'slip-sppay-1',
+    image_url: SLIP_IMAGES[1 % SLIP_IMAGES.length],
+    uploaded_at: new Date(now.getTime() - 40 * 60_000).toISOString(),
+    amount: btAmount,
+    transfer_time: new Date(now.getTime() - 45 * 60_000).toISOString(),
+    bank_name: 'ธนาคารกรุงเทพ',
+    account_number: '1234567890',
+    account_holder: 'บริษัท เซลสุกิ จำกัด',
+  };
+
+  const payment1: Payment = {
+    payment_id: 'pay-sppay-cash-1',
+    seq: 1,
+    payment_channel: 'CASH',
+    amount: cashAmount,
+    payment_status: 'COMPLETED',
+    slip_count: 0,
+  };
+
+  const payment2: Payment = {
+    payment_id: 'pay-sppay-bt-1',
+    seq: 2,
+    payment_channel: 'BANK_TRANSFER',
+    bank_name: 'ธนาคารกรุงเทพ',
+    transfer_time: slip.transfer_time,
+    amount: btAmount,
+    payment_status: 'COMPLETED',
+    slip_count: 1,
+    slips: [slip],
+    slip_id: slip.slip_id,
+    account_holder: slip.account_holder,
+  };
+
+  const auditTrail: AuditTrailEntry[] = ([
+    { id: 'audit-sppay-1', transaction_id: txId, event_type: 'TRANSACTION_CREATED' as const, operator_type: 'system' as const, created_at: new Date(now.getTime() - 90 * 60_000).toISOString() },
+    { id: 'audit-sppay-2', transaction_id: txId, payment_id: payment1.payment_id, event_type: 'PAYMENT_ADDED' as const, operator_type: 'user' as const, operator_name: 'ณัฐา ส่ง', operator_role: 'Cashier', created_at: new Date(now.getTime() - 80 * 60_000).toISOString() },
+    { id: 'audit-sppay-3', transaction_id: txId, payment_id: payment1.payment_id, event_type: 'PAYMENT_COMPLETED' as const, operator_type: 'system' as const, created_at: new Date(now.getTime() - 80 * 60_000).toISOString() },
+    { id: 'audit-sppay-4', transaction_id: txId, payment_id: payment2.payment_id, event_type: 'PAYMENT_ADDED' as const, operator_type: 'user' as const, operator_name: 'สมชาย ขาย', operator_role: 'Seller', created_at: new Date(now.getTime() - 45 * 60_000).toISOString() },
+    { id: 'audit-sppay-5', transaction_id: txId, payment_id: payment2.payment_id, event_type: 'PAYMENT_COMPLETED' as const, operator_type: 'user' as const, operator_name: 'วิไล จันทร์', operator_role: 'Finance Manager', created_at: new Date(now.getTime() - 40 * 60_000).toISOString() },
+    { id: 'audit-sppay-6', transaction_id: txId, event_type: 'TRANSACTION_CLOSED' as const, operator_type: 'system' as const, created_at: new Date(now.getTime() - 40 * 60_000).toISOString() },
+  ] satisfies AuditTrailEntry[]).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  const stateHistory: StateHistoryEntry[] = [
+    { from_state: null,      to_state: 'PENDING', at: new Date(now.getTime() - 90 * 60_000).toISOString() },
+    { from_state: 'PENDING', to_state: 'CLOSED',  at: new Date(now.getTime() - 40 * 60_000).toISOString() },
+  ];
+
+  return {
+    transaction_id: txId,
+    transaction_no: 'TXN-20260617-SPPAY01',
+    order_no: 'SO5566778899',
+    order_serial: 'SC-202606-00114',
+    order_total: totalAmount,
+    customer: { name: 'ปิยะ มงคล', contact: '083-456-7890', company_name: 'ห้างสรรพสินค้า ปิยะ' },
+    store_name: 'สุขุมวิก 20',
+    store_id: 'store-001',
+    payment_channel: 'BANK_TRANSFER',
+    bank_name: 'ธนาคารกรุงเทพ',
+    transfer_time: slip.transfer_time,
+    amount: totalAmount,
+    currency: 'THB',
+    slip_count: 1,
+    slips: [slip],
+    payment_status: 'COMPLETED',
+    transaction_status: 'CLOSED',
+    created_at: new Date(now.getTime() - 90 * 60_000).toISOString(),
+    updated_at: new Date(now.getTime() - 40 * 60_000).toISOString(),
+    is_expandable: true,
+    payments: [payment1, payment2],
+    state_history: stateHistory,
+    audit_trail: auditTrail,
+  };
+}
+
 export const INITIAL_TRANSACTIONS: Transaction[] = [
+  // ── GROUP 1: OMS-initiated cancellation ──────────────────────────────────
+  createOmsCancelledPendingCashTransaction(),   // OMS-1: PENDING+Cash
+  createOmsCancelledSettledCashTransaction(),    // OMS-5: SETTLED+Cash
+  // ── GROUP 2: SukiPay Transaction-level void ───────────────────────────────
+  createPendingBTVoidDemoTransaction(),          // SP-TX-3: PENDING+BT
+  // ── GROUP 3: SukiPay Payment-level void (UI TBD) ──────────────────────────
+  createMultiPaymentDemoTransaction(),           // SP-PAY-1: CLOSED Mixed Cash+BT
+  // ── existing demos ─────────────────────────────────────────────────────────
   createPendingCashVoidDemoTransaction(),
   createOverpayShowcaseTransaction(),
   createFreshOverpayDemoTransaction(),

@@ -972,16 +972,16 @@ export default function TransactionDetailPage() {
   }
 
   // ── Open correct dialog from OMS-cancelled banner ──────────────────────────
-  // - CLOSED + all CASH → VoidDialog (คืนเงินสดหน้าร้าน, ยืนยัน checkbox)
+  // - PENDING or CLOSED + all CASH → VoidDialog (คืนเงินสดหน้าร้าน, ยืนยัน checkbox)
   // - CLOSED + BANK_TRANSFER หรือ SETTLED + ทุก channel → RefundDialog (โอนธนาคาร)
   function handleOmsCancelledRefund() {
     const preCancelStatus = tx?.state_history?.find(h => h.to_state === 'CANCELLED')?.from_state;
-    const isClosedAllCash =
-      preCancelStatus === 'CLOSED' &&
+    const isPreSettlementAllCash =
+      (preCancelStatus === 'PENDING' || preCancelStatus === 'CLOSED') &&
       localPayments.length > 0 &&
       localPayments.every(p => p.payment_channel === 'CASH');
 
-    if (isClosedAllCash) {
+    if (isPreSettlementAllCash) {
       setVoidIsOmsCancelled(true);
       setVoidPreFilledReason(
         CANCELLATION_REASON_LABELS[tx?.cancellation_reason ?? ''] ?? tx?.cancellation_reason,
