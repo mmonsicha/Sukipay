@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PAT-2425 — Company Settings: Payment Mode</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #F5F6FA; color: #1A1D23; font-size: 14px; }
+
+  /* Layout */
+  .layout { display: flex; min-height: 100vh; }
+  .sidebar { width: 240px; background: #fff; border-right: 1px solid #E5E7EB; padding: 16px 0; flex-shrink: 0; }
+  .main { flex: 1; padding: 24px; overflow-y: auto; }
+
+  /* Sidebar */
+  .sidebar-logo { display: flex; align-items: center; gap: 8px; padding: 0 16px 16px; border-bottom: 1px solid #E5E7EB; margin-bottom: 8px; }
+  .sidebar-logo img { width: 28px; height: 28px; }
+  .sidebar-logo span { font-weight: 700; font-size: 16px; color: #F97316; }
+  .sidebar-section { padding: 8px 16px 4px; font-size: 11px; font-weight: 600; color: #9CA3AF; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 8px; }
+  .sidebar-item { display: flex; align-items: center; gap: 10px; padding: 9px 16px; cursor: pointer; color: #374151; border-radius: 0; transition: all 0.15s; font-size: 13.5px; }
+  .sidebar-item:hover { background: #F9FAFB; color: #111827; }
+  .sidebar-item.active { background: #FFF7ED; color: #EA580C; font-weight: 500; }
+  .sidebar-item .icon { width: 16px; height: 16px; opacity: 0.7; }
+  .sidebar-item.active .icon { opacity: 1; }
+  .company-badge { padding: 10px 16px; margin: 0 8px 12px; background: #F9FAFB; border-radius: 8px; display: flex; align-items: center; gap: 8px; }
+  .company-avatar { width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, #F97316, #EA580C); display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 12px; }
+  .company-name { font-size: 12px; font-weight: 600; color: #111827; }
+  .company-sub { font-size: 11px; color: #6B7280; }
+
+  /* Page header */
+  .page-card { background: #fff; border-radius: 12px; border: 1px solid #E5E7EB; overflow: hidden; max-width: 860px; }
+  .page-header { padding: 20px 24px; border-bottom: 1px solid #E5E7EB; display: flex; align-items: center; justify-content: space-between; }
+  .page-title { font-size: 18px; font-weight: 600; }
+  .page-subtitle { font-size: 13px; color: #6B7280; margin-top: 2px; }
+  .btn-edit { display: flex; align-items: center; gap: 6px; padding: 7px 14px; border: 1px solid #E5E7EB; border-radius: 8px; background: #fff; cursor: pointer; font-size: 13px; color: #374151; transition: all 0.15s; }
+  .btn-edit:hover { background: #F9FAFB; }
+
+  /* Tabs */
+  .tabs { display: flex; border-bottom: 1px solid #E5E7EB; padding: 0 24px; }
+  .tab { padding: 12px 0; margin-right: 24px; font-size: 13.5px; color: #6B7280; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
+  .tab:hover { color: #374151; }
+  .tab.active { color: #EA580C; border-bottom-color: #EA580C; font-weight: 500; }
+
+  /* Section */
+  .section { padding: 24px; border-bottom: 1px solid #E5E7EB; }
+  .section:last-child { border-bottom: none; }
+  .section-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .section-subtitle { font-size: 13px; color: #6B7280; margin-bottom: 20px; }
+
+  /* Info rows */
+  .info-row { display: flex; align-items: flex-start; padding: 14px 0; border-bottom: 1px solid #F3F4F6; gap: 16px; }
+  .info-row:last-child { border-bottom: none; }
+  .info-label { width: 220px; flex-shrink: 0; }
+  .info-label-text { font-size: 13.5px; font-weight: 500; color: #374151; }
+  .info-label-sub { font-size: 12px; color: #9CA3AF; margin-top: 2px; }
+  .info-value { font-size: 13.5px; color: #111827; }
+
+  /* Payment Mode Section */
+  .payment-section { padding: 24px; background: #fff; }
+  .payment-mode-card { border: 1px solid #E5E7EB; border-radius: 10px; padding: 20px; display: flex; align-items: center; justify-content: space-between; transition: all 0.2s; }
+  .payment-mode-card.sukipay-active { border-color: #FED7AA; background: #FFF7ED; }
+  .payment-mode-left { display: flex; align-items: center; gap: 14px; }
+  .mode-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .mode-icon.legacy { background: #F3F4F6; }
+  .mode-icon.sukipay { background: #FFF7ED; }
+  .mode-label { font-size: 14px; font-weight: 600; color: #111827; }
+  .mode-desc { font-size: 12px; color: #6B7280; margin-top: 2px; }
+  .mode-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; margin-top: 6px; }
+  .mode-badge.active { background: #DCFCE7; color: #16A34A; }
+  .mode-badge.inactive { background: #F3F4F6; color: #6B7280; }
+
+  /* Toggle */
+  .toggle-wrap { display: flex; align-items: center; gap: 10px; }
+  .toggle { position: relative; width: 44px; height: 24px; cursor: pointer; }
+  .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .toggle-track { position: absolute; inset: 0; border-radius: 24px; background: #D1D5DB; transition: 0.2s; }
+  .toggle-track.on { background: #EA580C; }
+  .toggle-thumb { position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.2); transition: 0.2s; }
+  .toggle-thumb.on { left: 23px; }
+  .toggle-label { font-size: 13px; font-weight: 500; color: #374151; min-width: 60px; }
+
+  /* Mode selector */
+  .mode-selector { display: flex; gap: 12px; margin-bottom: 16px; }
+  .mode-option { flex: 1; border: 2px solid #E5E7EB; border-radius: 10px; padding: 16px; cursor: pointer; transition: all 0.15s; position: relative; }
+  .mode-option:hover { border-color: #FDBA74; }
+  .mode-option.selected { border-color: #EA580C; background: #FFF7ED; }
+  .mode-option-title { font-size: 13.5px; font-weight: 600; color: #111827; display: flex; align-items: center; gap: 6px; }
+  .mode-option-desc { font-size: 12px; color: #6B7280; margin-top: 4px; }
+  .mode-check { position: absolute; top: 12px; right: 12px; width: 18px; height: 18px; border-radius: 50%; border: 2px solid #E5E7EB; display: flex; align-items: center; justify-content: center; }
+  .mode-check.checked { border-color: #EA580C; background: #EA580C; }
+  .mode-check.checked::after { content: ''; width: 6px; height: 6px; border-radius: 50%; background: white; }
+
+  .action-buttons { display: flex; gap: 8px; margin-top: 16px; }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 8px; font-size: 13.5px; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; }
+  .btn-primary { background: #EA580C; color: #fff; }
+  .btn-primary:hover { background: #C2410C; }
+  .btn-primary:disabled { background: #D1D5DB; color: #9CA3AF; cursor: not-allowed; }
+  .btn-secondary { background: #fff; color: #374151; border: 1px solid #E5E7EB; }
+  .btn-secondary:hover { background: #F9FAFB; }
+  .btn-danger { background: #fff; color: #DC2626; border: 1px solid #FECACA; }
+  .btn-danger:hover { background: #FEF2F2; }
+  .btn-sm { padding: 6px 12px; font-size: 12.5px; }
+
+  /* Help text */
+  .help-text { font-size: 11px; color: #9CA3AF; margin-top: 4px; text-align: center; }
+
+  /* Status banner */
+  .status-banner { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; }
+  .status-banner.warning { background: #FFFBEB; border: 1px solid #FDE68A; color: #92400E; }
+  .status-banner.success { background: #F0FDF4; border: 1px solid #BBF7D0; color: #166534; }
+  .status-banner.info { background: #EFF6FF; border: 1px solid #BFDBFE; color: #1E40AF; }
+
+  /* Modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 100; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+  .modal-overlay.show { opacity: 1; pointer-events: all; }
+  .modal { background: #fff; border-radius: 16px; padding: 28px; width: 460px; max-width: 90vw; box-shadow: 0 20px 60px rgba(0,0,0,0.15); transform: translateY(8px); transition: transform 0.2s; }
+  .modal-overlay.show .modal { transform: translateY(0); }
+  .modal-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; margin-bottom: 16px; }
+  .modal-icon.activate { background: #FFF7ED; }
+  .modal-icon.deactivate { background: #FEF2F2; }
+  .modal-title { font-size: 17px; font-weight: 700; color: #111827; margin-bottom: 6px; }
+  .modal-subtitle { font-size: 13px; color: #6B7280; margin-bottom: 20px; line-height: 1.5; }
+  .modal-impact { background: #F9FAFB; border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; }
+  .modal-impact-title { font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.4px; }
+  .modal-impact-item { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: #374151; margin-bottom: 8px; line-height: 1.4; }
+  .modal-impact-item:last-child { margin-bottom: 0; }
+  .modal-impact-dot { width: 6px; height: 6px; border-radius: 50%; background: #EA580C; flex-shrink: 0; margin-top: 5px; }
+  .modal-note { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: #6B7280; background: #F9FAFB; border-radius: 8px; padding: 10px 12px; margin-bottom: 20px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  .modal-warning { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 8px; margin-bottom: 16px; font-size: 13px; color: #92400E; line-height: 1.4; }
+  .modal-warning.blocked { background: #FEF2F2; border-color: #FECACA; color: #991B1B; }
+  .modal-warning-icon { font-size: 16px; flex-shrink: 0; }
+  .modal-success-state { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 8px; margin-bottom: 16px; font-size: 13px; color: #166534; }
+
+  /* Toast */
+  .toast-container { position: fixed; top: 20px; right: 20px; z-index: 200; display: flex; flex-direction: column; gap: 8px; }
+  .toast { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 10px; font-size: 13.5px; font-weight: 500; box-shadow: 0 4px 20px rgba(0,0,0,0.12); min-width: 280px; transform: translateX(120%); transition: transform 0.3s cubic-bezier(0.16,1,0.3,1); }
+  .toast.show { transform: translateX(0); }
+  .toast.success { background: #fff; border-left: 4px solid #16A34A; color: #111827; }
+  .toast.error { background: #fff; border-left: 4px solid #DC2626; color: #111827; }
+  .toast-icon { font-size: 16px; }
+
+  /* Scenario switcher */
+  .scenario-bar { background: #1E293B; color: #fff; padding: 10px 24px; display: flex; align-items: center; gap: 12px; font-size: 12px; position: sticky; top: 0; z-index: 50; flex-wrap: wrap; }
+  .scenario-label { color: #94A3B8; font-weight: 500; }
+  .scenario-btn { padding: 4px 12px; border-radius: 20px; border: 1px solid #334155; background: transparent; color: #CBD5E1; cursor: pointer; font-size: 12px; transition: all 0.15s; }
+  .scenario-btn:hover, .scenario-btn.active { background: #EA580C; border-color: #EA580C; color: #fff; }
+  .scenario-divider { color: #475569; }
+
+  /* Spinner */
+  .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
+  .spinner.dark { border-color: rgba(0,0,0,0.1); border-top-color: #374151; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Chip */
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .chip.orange { background: #FFF7ED; color: #EA580C; border: 1px solid #FED7AA; }
+  .chip.gray { background: #F3F4F6; color: #6B7280; border: 1px solid #E5E7EB; }
+</style>
+</head>
+<body>
+
+<!-- Scenario switcher -->
+<div class="scenario-bar">
+  <span class="scenario-label">🎨 Prototype PAT-2425</span>
+  <span class="scenario-divider">|</span>
+  <span class="scenario-label">Scenario:</span>
+  <button class="scenario-btn active" onclick="setScenario('legacy')">Legacy mode (default)</button>
+  <button class="scenario-btn" onclick="setScenario('sukipay')">SukiPay mode active</button>
+  <button class="scenario-btn" onclick="showActivateDialog()">Activate Dialog</button>
+  <button class="scenario-btn" onclick="showDeactivateDialog(false)">Deactivate Dialog (blocked)</button>
+  <button class="scenario-btn" onclick="showDeactivateDialog(true)">Deactivate Dialog (ready)</button>
+</div>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect width="28" height="28" rx="8" fill="#FFF7ED"/><path d="M14 6C9.6 6 6 9.6 6 14s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8z" fill="#F97316"/></svg>
+      <span>Sellsuki Admin</span>
+    </div>
+    <div class="company-badge">
+      <div class="company-avatar">PD</div>
+      <div>
+        <div class="company-name">Patona Design Co., Ltd.</div>
+        <div class="company-sub">Provider Admin</div>
+      </div>
+    </div>
+    <div class="sidebar-section">บริษัทและร้านค้า</div>
+    <div class="sidebar-item active">
+      <svg class="icon" fill="none" viewBox="0 0 16 16"><path d="M2 6l6-4 6 4v8H2V6z" stroke="#EA580C" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      บริษัทของฉัน
+    </div>
+    <div class="sidebar-section">Sellsuki Pay</div>
+    <div class="sidebar-item">
+      <svg class="icon" fill="none" viewBox="0 0 16 16"><rect x="1" y="3" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M1 7h14" stroke="currentColor" stroke-width="1.5"/></svg>
+      ช่องทางการชำระเงิน
+    </div>
+    <div class="sidebar-section">การจัดการบัญชี</div>
+    <div class="sidebar-item">
+      <svg class="icon" fill="none" viewBox="0 0 16 16"><circle cx="8" cy="5" r="3" stroke="currentColor" stroke-width="1.5"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      ผู้ใช้
+    </div>
+    <div class="sidebar-item">
+      <svg class="icon" fill="none" viewBox="0 0 16 16"><path d="M2 4h12M2 8h8M2 12h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      บทบาทผู้ใช้
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <div class="main">
+    <div class="page-card">
+      <!-- Header -->
+      <div class="page-header">
+        <div>
+          <div class="page-title">Patona Design Co., Ltd.</div>
+          <div class="page-subtitle">ภาพรวมและการตั้งค่าบริษัทของคุณ</div>
+        </div>
+        <button class="btn-edit">
+          <svg width="14" height="14" fill="none" viewBox="0 0 14 14"><path d="M9.5 2L12 4.5l-7 7H2.5V9L9.5 2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+          แก้ไขบริษัท
+        </button>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <div class="tab">ข้อมูลบริษัท</div>
+        <div class="tab active">การตั้งค่าการชำระเงิน</div>
+        <div class="tab">ผู้ใช้</div>
+      </div>
+
+      <!-- Payment Settings Section -->
+      <div id="payment-section" class="payment-section">
+
+        <div class="section-title" style="margin-bottom:4px">โหมดการชำระเงิน</div>
+        <div class="section-subtitle" style="margin-bottom:20px">เลือกวิธีที่ระบบจัดการสถานะการชำระเงินของ company นี้</div>
+
+        <!-- Current mode card -->
+        <div id="mode-card" class="payment-mode-card">
+          <div class="payment-mode-left">
+            <div id="mode-icon" class="mode-icon legacy">🏦</div>
+            <div>
+              <div id="mode-label" class="mode-label">Legacy Mode</div>
+              <div id="mode-desc" class="mode-desc">OMS จัดการสถานะการชำระเงินเอง</div>
+              <div id="mode-badge" class="mode-badge active">✓ ใช้งานอยู่</div>
+            </div>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:8px;">
+            <div id="toggle-section">
+              <button id="activate-btn" class="btn btn-primary" onclick="showActivateDialog()" style="display:none">เปิดใช้งาน SukiPay</button>
+              <button id="deactivate-btn" class="btn btn-danger" onclick="promptDeactivate()" style="display:none">ปิดใช้งาน SukiPay</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mode info rows -->
+        <div style="margin-top:20px; border:1px solid #E5E7EB; border-radius:10px; overflow:hidden;">
+          <div style="padding:14px 16px; background:#F9FAFB; border-bottom:1px solid #E5E7EB; display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:12px; font-weight:600; color:#374151; text-transform:uppercase; letter-spacing:0.4px;">โหมดที่รองรับ</span>
+          </div>
+
+          <!-- Legacy row -->
+          <div id="legacy-row" style="display:flex; align-items:center; justify-content:space-between; padding:16px; border-bottom:1px solid #F3F4F6;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:36px; height:36px; background:#F3F4F6; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:16px;">🏦</div>
+              <div>
+                <div style="font-size:13.5px; font-weight:600; color:#111827;">Legacy <span style="font-size:11px; font-weight:400; color:#6B7280;">(ค่าเริ่มต้น)</span></div>
+                <div style="font-size:12px; color:#6B7280; margin-top:2px;">OMS จัดการ payment_status เอง — ไม่ขึ้นกับ SukiPay</div>
+              </div>
+            </div>
+            <span id="legacy-status" class="chip orange">● ใช้งานอยู่</span>
+          </div>
+
+          <!-- SukiPay row -->
+          <div id="sukipay-row" style="display:flex; align-items:center; justify-content:space-between; padding:16px;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:36px; height:36px; background:#FFF7ED; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:16px;">⚡</div>
+              <div>
+                <div style="font-size:13.5px; font-weight:600; color:#111827;">SukiPay</div>
+                <div style="font-size:12px; color:#6B7280; margin-top:2px;">SukiPay เป็น source of truth — OMS รับ event จาก SukiPay</div>
+              </div>
+            </div>
+            <span id="sukipay-status" class="chip gray">ไม่ได้ใช้งาน</span>
+          </div>
+        </div>
+
+        <!-- Note -->
+        <div style="display:flex; gap:8px; padding:12px 14px; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:8px; margin-top:12px; font-size:12px; color:#64748B; line-height:1.5;">
+          <span>ℹ️</span>
+          <span>การเปลี่ยนโหมดมีผลกับ <strong>order ที่สร้างใหม่เท่านั้น</strong> — order เก่าไม่ได้รับผลกระทบ</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ACTIVATE DIALOG ===== -->
+<div class="modal-overlay" id="activate-modal">
+  <div class="modal">
+    <div class="modal-icon activate">⚡</div>
+    <div class="modal-title">เปิดใช้งาน SukiPay Payment Mode</div>
+    <div class="modal-subtitle">การเปลี่ยนแปลงนี้จะมีผลกับ order ที่สร้างใหม่ทันที</div>
+
+    <div class="modal-impact">
+      <div class="modal-impact-title">ผลกระทบที่จะเกิดขึ้น</div>
+      <div class="modal-impact-item">
+        <div class="modal-impact-dot"></div>
+        <span>Transaction ใหม่จะถูกบันทึกผ่าน SukiPay</span>
+      </div>
+      <div class="modal-impact-item">
+        <div class="modal-impact-dot"></div>
+        <span>VOID และ Refund ต้องผ่าน SukiPay</span>
+      </div>
+      <div class="modal-impact-item">
+        <div class="modal-impact-dot"></div>
+        <span>OMS จะรับสถานะการชำระเงินจาก SukiPay</span>
+      </div>
+    </div>
+
+    <div class="modal-note">
+      <span>📌</span>
+      <span>Transaction เก่า (legacy) ไม่ได้รับผลกระทบ — ยังทำงานตามระบบเดิม</span>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('activate-modal')">ยกเลิก</button>
+      <button class="btn btn-primary" id="confirm-activate-btn" onclick="confirmActivate()">
+        <span id="activate-spinner" style="display:none" class="spinner"></span>
+        <span id="activate-btn-text">ยืนยันเปิดใช้งาน</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DEACTIVATE DIALOG ===== -->
+<div class="modal-overlay" id="deactivate-modal">
+  <div class="modal">
+    <div class="modal-icon deactivate">🔒</div>
+    <div class="modal-title">ปิดใช้งาน SukiPay Payment Mode</div>
+    <div class="modal-subtitle">ตรวจสอบ transaction ที่ค้างอยู่ก่อนดำเนินการ</div>
+
+    <!-- State: BLOCKED (has open transactions) -->
+    <div id="deactivate-blocked" class="modal-warning blocked" style="display:none">
+      <span class="modal-warning-icon">⛔</span>
+      <div>
+        <strong>ไม่สามารถปิดได้ในขณะนี้</strong><br>
+        Transaction ที่ยังค้างอยู่: <strong>3 รายการ</strong> (PENDING / REFUND_PENDING)<br>
+        <span style="font-size:12px; margin-top:4px; display:block;">จัดการ transaction ให้เสร็จก่อนปิด SukiPay</span>
+      </div>
+    </div>
+
+    <!-- State: READY (no open transactions) -->
+    <div id="deactivate-ready" class="modal-success-state" style="display:none">
+      <span>✅</span>
+      <div>
+        <strong>พร้อมปิดใช้งาน</strong><br>
+        <span style="font-size:12px;">ไม่มี transaction ค้างอยู่ สามารถปิด SukiPay ได้เลย</span>
+      </div>
+    </div>
+
+    <div style="font-size:13px; color:#6B7280; margin-bottom:20px; line-height:1.5; padding:12px 14px; background:#F9FAFB; border-radius:8px;">
+      หลังปิด SukiPay — order ใหม่จะกลับไปใช้ Legacy mode (OMS จัดการเอง) order เก่าไม่เปลี่ยน
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('deactivate-modal')">ยกเลิก</button>
+      <button class="btn btn-danger" id="confirm-deactivate-btn" onclick="confirmDeactivate()">
+        <span id="deactivate-spinner" style="display:none" class="spinner dark"></span>
+        <span id="deactivate-btn-text">ยืนยันปิด SukiPay</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+  let currentMode = 'legacy'; // 'legacy' | 'sukipay'
+
+  function setScenario(mode) {
+    currentMode = mode;
+    updateModeUI();
+    document.querySelectorAll('.scenario-btn').forEach((b,i) => {
+      b.classList.toggle('active', (i === 0 && mode === 'legacy') || (i === 1 && mode === 'sukipay'));
+    });
+  }
+
+  function updateModeUI() {
+    const isLegacy = currentMode === 'legacy';
+    const modeCard = document.getElementById('mode-card');
+    const modeIcon = document.getElementById('mode-icon');
+    const modeLabel = document.getElementById('mode-label');
+    const modeDesc = document.getElementById('mode-desc');
+    const activateBtn = document.getElementById('activate-btn');
+    const deactivateBtn = document.getElementById('deactivate-btn');
+    const legacyStatus = document.getElementById('legacy-status');
+    const sukipayStatus = document.getElementById('sukipay-status');
+
+    if (isLegacy) {
+      modeCard.className = 'payment-mode-card';
+      modeIcon.className = 'mode-icon legacy';
+      modeIcon.textContent = '🏦';
+      modeLabel.textContent = 'Legacy Mode';
+      modeDesc.textContent = 'OMS จัดการสถานะการชำระเงินเอง';
+      activateBtn.style.display = 'flex';
+      deactivateBtn.style.display = 'none';
+      legacyStatus.className = 'chip orange';
+      legacyStatus.textContent = '● ใช้งานอยู่';
+      sukipayStatus.className = 'chip gray';
+      sukipayStatus.textContent = 'ไม่ได้ใช้งาน';
+    } else {
+      modeCard.className = 'payment-mode-card sukipay-active';
+      modeIcon.className = 'mode-icon sukipay';
+      modeIcon.textContent = '⚡';
+      modeLabel.textContent = 'SukiPay Mode';
+      modeDesc.textContent = 'SukiPay เป็น source of truth — OMS รับ event จาก SukiPay';
+      activateBtn.style.display = 'none';
+      deactivateBtn.style.display = 'flex';
+      legacyStatus.className = 'chip gray';
+      legacyStatus.textContent = 'ไม่ได้ใช้งาน';
+      sukipayStatus.className = 'chip orange';
+      sukipayStatus.textContent = '● ใช้งานอยู่';
+    }
+  }
+
+  function showActivateDialog() {
+    document.getElementById('activate-modal').classList.add('show');
+    document.getElementById('confirm-activate-btn').disabled = false;
+    document.getElementById('activate-spinner').style.display = 'none';
+    document.getElementById('activate-btn-text').textContent = 'ยืนยันเปิดใช้งาน';
+  }
+
+  function showDeactivateDialog(canDeactivate) {
+    document.getElementById('deactivate-modal').classList.add('show');
+    document.getElementById('deactivate-blocked').style.display = canDeactivate ? 'none' : 'flex';
+    document.getElementById('deactivate-ready').style.display = canDeactivate ? 'flex' : 'none';
+    const btn = document.getElementById('confirm-deactivate-btn');
+    btn.disabled = !canDeactivate;
+    btn.style.opacity = canDeactivate ? '1' : '0.4';
+    document.getElementById('deactivate-spinner').style.display = 'none';
+    document.getElementById('deactivate-btn-text').textContent = 'ยืนยันปิด SukiPay';
+  }
+
+  function promptDeactivate() {
+    // Check if there are open transactions (simulate: if sukipay mode, show dialog)
+    showDeactivateDialog(Math.random() > 0.5); // random for demo
+  }
+
+  function closeModal(id) {
+    document.getElementById(id).classList.remove('show');
+  }
+
+  function confirmActivate() {
+    const btn = document.getElementById('confirm-activate-btn');
+    btn.disabled = true;
+    document.getElementById('activate-spinner').style.display = 'block';
+    document.getElementById('activate-btn-text').textContent = 'กำลังดำเนินการ...';
+
+    setTimeout(() => {
+      closeModal('activate-modal');
+      currentMode = 'sukipay';
+      updateModeUI();
+      showToast('success', '✅', 'เปิดใช้งาน SukiPay สำเร็จ', 'Order ใหม่จะใช้ SukiPay mode');
+      document.querySelectorAll('.scenario-btn')[1].classList.add('active');
+      document.querySelectorAll('.scenario-btn')[0].classList.remove('active');
+    }, 1600);
+  }
+
+  function confirmDeactivate() {
+    const btn = document.getElementById('confirm-deactivate-btn');
+    btn.disabled = true;
+    document.getElementById('deactivate-spinner').style.display = 'block';
+    document.getElementById('deactivate-btn-text').textContent = 'กำลังดำเนินการ...';
+
+    setTimeout(() => {
+      closeModal('deactivate-modal');
+      currentMode = 'legacy';
+      updateModeUI();
+      showToast('success', '✅', 'ปิดใช้งาน SukiPay สำเร็จ', 'กลับสู่ Legacy mode แล้ว');
+      document.querySelectorAll('.scenario-btn')[0].classList.add('active');
+      document.querySelectorAll('.scenario-btn')[1].classList.remove('active');
+    }, 1600);
+  }
+
+  function showToast(type, icon, title, subtitle) {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `<span class="toast-icon">${icon}</span><div><div style="font-weight:600">${title}</div><div style="font-size:12px;color:#6B7280;margin-top:1px">${subtitle}</div></div>`;
+    container.appendChild(toast);
+    requestAnimationFrame(() => { requestAnimationFrame(() => { toast.classList.add('show'); }); });
+    setTimeout(() => {
+      toast.classList.remove('show');
+      setTimeout(() => toast.remove(), 400);
+    }, 3500);
+  }
+
+  // Close modal on overlay click
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.classList.remove('show');
+    });
+  });
+
+  // Init
+  setScenario('legacy');
+  updateModeUI();
+</script>
+</body>
+</html>
